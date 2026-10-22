@@ -70,8 +70,9 @@ OpenCASCADE. Si installa a parte, in `.venv-augura` (circa 700 MB), con
 - si possono caricare file **STEP**: vengono convertiti in STL per l'analisi e le immagini;
 - sugli STEP augura dà controlli esatti (soffitti e ponti con la loro luce, spessori,
   particolari minimi) e la sua classifica degli orientamenti;
-- sugli STL i suoi controlli sono approssimati (sporgenze, ribaltamento, brim) e non c'è
-  ricerca dell'orientamento.
+- sugli STL i suoi controlli sarebbero approssimati (sporgenze, ribaltamento, brim) e senza
+  ricerca dell'orientamento, cioè doppioni dell'analisi: per questo l'assistente lo usa **solo
+  sui file STEP**.
 
 augura non funziona senza build123d (lo importa anche per gli STL), quindi l'add-on non ha una
 versione leggera. La versione è bloccata a 0.1.8 perché il progetto è pre-alpha.

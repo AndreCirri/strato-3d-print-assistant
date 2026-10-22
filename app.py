@@ -41,7 +41,7 @@ with st.sidebar:
     st.subheader("Add-on")
     ADDON = augura_addon.disponibile()
     if ADDON:
-        st.success("augura attivo: file STEP e controlli in più")
+        st.success("augura attivo: file STEP e controlli esatti (solo sugli STEP)")
     else:
         st.caption("augura non installato. Per file STEP e controlli esatti: "
                    "`addon_augura\\installa.bat` (circa 700 MB), poi riavvia.")
@@ -125,8 +125,9 @@ with tab_analisi:
                                                 config.SUPPORTI_SEZIONAMENTO)
                 dati["sezionamento"] = {"processo": config.PROFILO_PROCESSO, "filamento": profilo_filamento,
                                         "supporti": config.SUPPORTI_SEZIONAMENTO}
-        if ADDON:
-            with st.spinner("Controlli di augura..."):
+        # sugli STL augura ripete in modo approssimato controlli che l'analisi fa già: solo per gli STEP
+        if ADDON and originale.suffix.lower() in augura_addon.FORMATI_STEP:
+            with st.spinner("Controlli di augura sulla geometria esatta dello STEP..."):
                 dati["augura"] = augura_addon.verifica(originale)
         (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
         st.session_state["lavoro"] = str(cartella)
