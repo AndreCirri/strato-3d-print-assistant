@@ -11,7 +11,7 @@ import augura_addon
 import config
 import diario
 from analisi import analizza
-from consiglio import chiedi, prompt_consiglio, prompt_diagnosi
+from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 from render import griglia_orientamenti, viste
 
 st.set_page_config(page_title="Assistente stampa 3D", page_icon="🧩", layout="wide")
@@ -34,6 +34,27 @@ with st.sidebar:
                    "`addon_augura\\installa.bat` (circa 700 MB), poi riavvia.")
 
 tab_analisi, tab_diario, tab_storico = st.tabs(["Analizza un pezzo", "Diario di stampa", "Analisi passate"])
+
+
+def tabella_confronto(dati, cartella):
+    """Chi sceglie quale orientamento: nostra classifica, slicer (due modi), Claude."""
+    per_id = {o["id"]: o for o in dati["orientamenti"]}
+    scelte = [("Nostra classifica (primo posto)", dati["orientamenti"][0]["id"])]
+    for s in dati.get("confronto_slicer", {}).get("scelte", []):
+        scelte.append((s["chi"][0].upper() + s["chi"][1:], s["id"]))
+    consiglio = cartella / "consiglio.md"
+    if consiglio.exists():
+        scelte.append(("Claude", orientamento_scelto(consiglio.read_text(encoding="utf-8"))))
+    righe = []
+    for chi, i in scelte:
+        o = per_id.get(i, {})
+        righe.append({"chi sceglie": chi, "orientamento": i if o else "n.d.", "origine": o.get("origine"),
+                      "appoggio mm²": o.get("area_appoggio_mm2"),
+                      "supporti dal piatto mm²": o.get("supporti_dal_piatto_area_mm2"),
+                      "supporti sul pezzo mm²": o.get("supporti_sul_pezzo_area_mm2"),
+                      "si ribalta": o.get("si_ribalta"), "brim": o.get("brim_consigliato"),
+                      "punteggio nostro": o.get("punteggio"), "costo slicer": o.get("costo_slicer")})
+    return pd.DataFrame(righe)
 
 
 def nome_lavoro(nome_file):
@@ -96,9 +117,16 @@ with tab_analisi:
             st.info(f"Il modello non è perfettamente chiuso ({dati['bordi_aperti']} bordi aperti): "
                     "di solito lo slicer lo ripara da solo, ma controlla l'anteprima.")
         tabella = pd.DataFrame([{k: v for k, v in o.items() if k != "trasformazione"} for o in dati["orientamenti"]])
-        tabella["avvisi"] = tabella["avvisi"].apply(lambda a: "; ".join(a))
+        for col in ("avvisi", "scelto_da_slicer"):
+            if col in tabella:
+                tabella[col] = tabella[col].apply(lambda a: "; ".join(a) if isinstance(a, list) else a)
         st.dataframe(tabella.set_index("id"), width="stretch")
-        st.caption("Punteggio più basso = meno supporti da togliere. I supporti che poggiano sul pezzo pesano il triplo.")
+        st.caption("Punteggio più basso = meno supporti da togliere. I supporti che poggiano sul pezzo pesano il triplo. "
+                   "Costo slicer: il valore che dà al candidato l'orientamento automatico dello slicer (più basso = preferito).")
+        if "confronto_slicer" in dati:
+            st.markdown("**Chi sceglie cosa**")
+            st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
+            st.caption(dati["confronto_slicer"]["nota"])
         st.image(str(cartella / "orientamenti.png"))
         for img in sorted(cartella.glob("viste_*.png")):
             st.image(str(img))

@@ -5,6 +5,7 @@ non può modificare file né eseguire comandi.
 """
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
@@ -23,6 +24,9 @@ che partono dal piatto, arancione = supporti che poggerebbero sul pezzo (i più 
 - Se l'analisi contiene "augura", sono controlli di un secondo strumento: esatti per i file STEP \
 (ponti, spessori, orientamenti), approssimati per gli STL. Se i due strumenti non concordano, dillo e \
 spiega quale è più affidabile in quel caso.
+- "scelto_da_slicer" e "confronto_slicer" riproducono l'orientamento automatico di OrcaSlicer/ElegooSlicer \
+con lo stesso algoritmo: la sua formula premia poche sporgenze e la base dell'involucro convesso, quindi a \
+volte sceglie pose inclinate che toccano il piatto solo con spigoli.
 - Ribaltamento e brim sono calcolati per ogni orientamento: se consigli un orientamento con brim \
 consigliato, specifica tipo e larghezza del brim.
 - Nomina le opzioni come nell'interfaccia italiana di ElegooSlicer/OrcaSlicer; se non sei sicuro della \
@@ -37,7 +41,9 @@ Tre o quattro righe: orientamento, materiale e le due o tre impostazioni che con
 ## Il pezzo
 Cosa noti della geometria (spessori, sporgenze, parti delicate) rispetto all'uso descritto.
 ## Orientamento
-Quale dei candidati (numero) e perché, confrontando i numeri; cosa si sacrifica.
+La prima riga della sezione deve essere esattamente `Scelta: N`, con N il numero del candidato scelto.
+Poi perché, confrontando i numeri; cosa si sacrifica. Confrontati con "confronto_slicer": dì se per \
+questo pezzo conviene fidarsi del pulsante Orienta automaticamente dello slicer, e perché.
 ## Materiale
 ## Impostazioni
 Una tabella: Sezione | Opzione | Valore | Perché. Solo le opzioni da cambiare rispetto al profilo abituale.
@@ -75,6 +81,12 @@ async def _chiedi(prompt, cartella, modello):
             if msg.is_error:
                 errore = f"{msg.subtype} (stop: {msg.stop_reason})"
     return testo, costo, errore
+
+
+def orientamento_scelto(testo):
+    """Il numero dopo 'Scelta:' nella sezione Orientamento del consiglio (None se manca)."""
+    m = re.search(r"Scelta:\s*\**\s*(\d+)", testo or "")
+    return int(m.group(1)) if m else None
 
 
 def chiedi(prompt, cartella, modello="opus"):

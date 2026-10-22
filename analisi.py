@@ -10,6 +10,8 @@ import numpy as np
 import trimesh
 from shapely.geometry import MultiPoint, Point
 
+import orienta_slicer
+
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="trimesh")
 
 MAX_RAGGI = 20000          # facce campionate per i calcoli con i raggi (pezzi grandi)
@@ -139,11 +141,20 @@ def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
 APPOGGIO_MINIMO = 10.0    # mm2: sotto questo il pezzo poggia su punte o spigoli
 
 
-def orientamenti(mesh, n=6):
-    """Orientamento del file + pose stabili più probabili, ognuna con la sua valutazione."""
+NOMI_SLICER = {"interfaccia": "slicer, pulsante Orienta", "riga_di_comando": "slicer, riga di comando"}
+
+
+def orientamenti(mesh, n=6, scelte_slicer=()):
+    """Orientamento del file + pose stabili più probabili + scelte dello slicer, ognuna valutata.
+    Ogni candidato ha anche il costo che gli darebbe il pulsante Orienta dello slicer."""
     trasf, prob = mesh.compute_stable_poses(n_samples=1)
     candidati = [(np.eye(4), None, "come nel file")]
     candidati += [(T, p, "posa stabile") for T, p in list(zip(trasf, prob))[:n]]
+    for s in scelte_slicer:
+        # se la scelta dello slicer coincide con un candidato, si segna su quello
+        if not any(orienta_slicer.direzione_su(T) @ np.array(s["su"]) > 0.999 for T, _, _ in candidati):
+            candidati.append((np.array(s["trasformazione"]), None, NOMI_SLICER[s["modo"]]))
+    scafo = mesh.convex_hull
     out = []
     for T, p, origine in candidati:
         m = mesh.copy()
@@ -162,6 +173,9 @@ def orientamenti(mesh, n=6):
         if v["brim_consigliato"]:
             avvisi.append("serve il brim: " + v["brim_motivo"])
         v["avvisi"] = avvisi
+        su = orienta_slicer.direzione_su(T)
+        v["costo_slicer"] = round(orienta_slicer.costo(mesh, su, SOGLIA_SUPPORTI, scafo)[0], 3)
+        v["scelto_da_slicer"] = [NOMI_SLICER[s["modo"]] for s in scelte_slicer if su @ np.array(s["su"]) > 0.999]
         out.append({"trasformazione": T.tolist(), **v})
     # punteggio semplice (più basso = meglio): i supporti sul pezzo pesano il triplo,
     # l'appoggio su punte e il ribaltamento sono penalizzati perché il pezzo rischia di staccarsi
@@ -196,8 +210,36 @@ def analizza(percorso):
         "spessori": spessori(mesh, rng),
         "soglia_supporti_gradi": SOGLIA_SUPPORTI,
     }
-    info["orientamenti"] = orientamenti(mesh)
+    scelte = [orienta_slicer.scelta_slicer(mesh, SOGLIA_SUPPORTI, modo) for modo in ("interfaccia", "riga_di_comando")]
+    info["orientamenti"] = orientamenti(mesh, scelte_slicer=scelte)
+    info["confronto_slicer"] = confronto_slicer(info["orientamenti"], scelte)
     return mesh, info
+
+
+CAMPI_CONFRONTO = ["altezza_mm", "area_appoggio_mm2", "supporti_dal_piatto_area_mm2", "supporti_sul_pezzo_area_mm2",
+                   "volume_supporti_stimato_mm3", "si_ribalta", "brim_consigliato", "punteggio", "costo_slicer"]
+
+
+def confronto_slicer(orientamenti, scelte):
+    """Le scelte dell'orientamento automatico dello slicer contro il primo della nostra classifica."""
+    nostro = orientamenti[0]
+    out = {"nota": "Orientamento automatico di OrcaSlicer/ElegooSlicer ricalcolato con lo stesso algoritmo "
+                   "(verificato sulla riga di comando di ElegooSlicer). Il pulsante Orienta dell'interfaccia usa "
+                   "la modalità 'area minima dei supporti' e la soglia supporti del profilo; la riga di comando "
+                   "usa i parametri predefiniti con angolo 60°.",
+           "id_primo_nostra_classifica": nostro["id"], "scelte": []}
+    for s in scelte:
+        nome = NOMI_SLICER[s["modo"]]
+        suo = next(o for o in orientamenti if nome in o["scelto_da_slicer"])
+        # pari merito con il nostro primo = d'accordo, anche se è una posa gemella
+        concorda = suo is nostro or suo["punteggio"] <= nostro["punteggio"]
+        out["scelte"].append({
+            "chi": nome, "id": suo["id"], "angolo_gradi": s["angolo_gradi"],
+            "concorda_con_nostra_classifica": concorda,
+            "differenze": {} if concorda else {c: {"slicer": suo[c], "nostro_primo": nostro[c]} for c in CAMPI_CONFRONTO},
+            "dettagli_formula_slicer": s["dettagli"],
+        })
+    return out
 
 
 if __name__ == "__main__":

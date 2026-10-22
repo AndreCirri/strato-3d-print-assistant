@@ -21,6 +21,12 @@ La pagina si apre su http://localhost:8501 ed è raggiungibile solo da questo PC
    che poggerebbero sul pezzo.
    Per ogni orientamento controlla anche se il pezzo **si ribalta** (baricentro fuori
    dall'impronta sul piatto) e se serve il **brim**.
+   Tra i candidati ci sono anche le scelte dell'**orientamento automatico dello slicer**
+   (`orienta_slicer.py`): l'algoritmo di OrcaSlicer, da cui deriva ElegooSlicer, tradotto in
+   Python, nei due modi in cui lo usa lo slicer (pulsante "Orienta" dell'interfaccia e riga di
+   comando). La traduzione è stata verificata contro `elegoo-slicer.exe --orient 1`: stessi
+   candidati, costi con scarto mediano 0,1%, stessa scelta. La pagina mostra chi sceglie cosa:
+   nostra classifica, slicer e Claude.
 2. **Immagini** (`render.py`): gli orientamenti con le sporgenze colorate
    (rosso = supporto dal piatto, arancione = supporto sul pezzo).
 3. **Consiglio** (`consiglio.py`): Claude riceve numeri, immagini, stampante, scopo del pezzo
@@ -59,6 +65,12 @@ Per toglierlo basta cancellare la cartella `.venv-augura`.
 
 - `lavori/`: una cartella per ogni analisi (file, analisi.json, immagini, consiglio.md)
 - `diario.jsonl` e `foto/`: il diario di stampa
+
+## Licenze
+
+`orienta_slicer.py` è una traduzione di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
+rilasciato sotto **AGPL-3.0**: se il progetto viene distribuito o reso pubblico, quel file (e il
+programma che lo include) va distribuito con una licenza compatibile.
 
 ## Da fare
 
