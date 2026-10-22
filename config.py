@@ -14,6 +14,14 @@ STAMPANTE = {
     "profilo_processo_abituale": "0.16mm Optimal @Elegoo CC 0.4 nozzle",
 }
 
+# Profili di sistema di ElegooSlicer usati per il sezionamento reale (slicer_cli.py)
+PROFILO_STAMPANTE = "Elegoo Centauri Carbon 0.4 nozzle"
+PROFILO_PROCESSO = "0.16mm Optimal @Elegoo CC 0.4 nozzle"
+PROFILO_FILAMENTO = "Elegoo PETG @ECC"
+# supporti come nelle tue impostazioni: ad albero, solo dal piatto, soglia 30°
+SUPPORTI_SEZIONAMENTO = {"enable_support": "1", "support_type": "tree(auto)",
+                         "support_threshold_angle": "30", "support_on_build_plate_only": "1"}
+
 UGELLO_MM = 0.4
 VOLUME_STAMPA = (256, 256, 256)      # mm, Centauri Carbon: usato dall'add-on augura
 

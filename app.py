@@ -11,6 +11,7 @@ import augura_addon
 import config
 import diario
 import orienta_slicer
+import slicer_cli
 from analisi import analizza
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 from render import griglia_orientamenti, viste
@@ -26,6 +27,17 @@ with st.sidebar:
                "conta sui limiti d'uso. Il costo mostrato è l'equivalente API.")
     st.subheader("Stampante")
     st.json(config.STAMPANTE, expanded=False)
+    st.subheader("Sezionamento reale")
+    SLICER = slicer_cli.disponibile()
+    if SLICER:
+        filamenti_slicer = slicer_cli.filamenti_disponibili()
+        profilo_filamento = st.selectbox("Profilo filamento", filamenti_slicer,
+                                         index=filamenti_slicer.index(config.PROFILO_FILAMENTO)
+                                         if config.PROFILO_FILAMENTO in filamenti_slicer else 0)
+        st.caption(f"ElegooSlicer seziona ogni orientamento con «{config.PROFILO_PROCESSO}» e supporti ad albero "
+                   "solo dal piatto (soglia 30°): grammi e tempi veri, non stime.")
+    else:
+        st.caption("ElegooSlicer non trovato: niente sezionamento reale.")
     st.subheader("Add-on")
     ADDON = augura_addon.disponibile()
     if ADDON:
@@ -60,6 +72,8 @@ def tabella_confronto(dati, cartella):
                       "supporti dal piatto mm²": o.get("supporti_dal_piatto_area_mm2"),
                       "supporti sul pezzo mm²": o.get("supporti_sul_pezzo_area_mm2"),
                       "si ribalta": o.get("si_ribalta"), "brim": o.get("brim_consigliato"),
+                      "supporti g (reali)": (o.get("slicer") or {}).get("supporti_g"),
+                      "tempo (reale)": (o.get("slicer") or {}).get("tempo"),
                       "punteggio nostro": o.get("punteggio"), "costo slicer": o.get("costo_slicer")})
     return pd.DataFrame(righe)
 
@@ -104,6 +118,13 @@ with tab_analisi:
             for o in dati["orientamenti"][:2]:
                 viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png",
                       f"Orientamento {o['id']} ({o['origine']})")
+        if SLICER:
+            with st.spinner("ElegooSlicer seziona ogni orientamento (qualche secondo ciascuno)..."):
+                slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
+                                                config.PROFILO_PROCESSO, profilo_filamento,
+                                                config.SUPPORTI_SEZIONAMENTO)
+                dati["sezionamento"] = {"processo": config.PROFILO_PROCESSO, "filamento": profilo_filamento,
+                                        "supporti": config.SUPPORTI_SEZIONAMENTO}
         if ADDON:
             with st.spinner("Controlli di augura..."):
                 dati["augura"] = augura_addon.verifica(originale)
@@ -123,7 +144,20 @@ with tab_analisi:
         if not dati["chiuso_stagno"]:
             st.info(f"Il modello non è perfettamente chiuso ({dati['bordi_aperti']} bordi aperti): "
                     "di solito lo slicer lo ripara da solo, ma controlla l'anteprima.")
-        tabella = pd.DataFrame([{k: v for k, v in o.items() if k != "trasformazione"} for o in dati["orientamenti"]])
+        def riga(o):
+            r = {k: v for k, v in o.items() if k not in ("trasformazione", "slicer")}
+            s = o.get("slicer") or {}
+            if s and "errore" not in s:
+                r.update({"filamento pezzo g": s["pezzo_g"], "filamento supporti g": s["supporti_g"],
+                          "brim g": s["brim_g"], "tempo": s.get("tempo"), "tempo_s": s.get("tempo_s")})
+            elif s:
+                r["sezionamento"] = "errore: " + s["errore"]
+            return r
+        tabella = pd.DataFrame([riga(o) for o in dati["orientamenti"]])
+        if "sezionamento" in dati:
+            st.caption(f"Grammi e tempi: sezionamento reale con ElegooSlicer, filamento «{dati['sezionamento']['filamento']}». "
+                       "I grammi sono il filamento estruso misurato nel G-code (lo slicer dichiara qualche decimo di grammo "
+                       "in più per retrazioni e spurgo).")
         for col in ("avvisi", "scelto_da_slicer"):
             if col in tabella:
                 tabella[col] = tabella[col].apply(lambda a: "; ".join(a) if isinstance(a, list) else a)

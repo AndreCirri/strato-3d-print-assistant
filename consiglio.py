@@ -27,6 +27,10 @@ spiega quale è più affidabile in quel caso.
 - "scelto_da_slicer" e "confronto_slicer" riproducono l'orientamento automatico di OrcaSlicer/ElegooSlicer \
 con lo stesso algoritmo: la sua formula premia poche sporgenze e la base dell'involucro convesso, quindi a \
 volte sceglie pose inclinate che toccano il piatto solo con spigoli.
+- Se un orientamento ha il campo "slicer", sono i numeri di un sezionamento reale con ElegooSlicer \
+(grammi di pezzo, supporti e brim misurati nel G-code, tempo stimato dallo slicer, profilo in "sezionamento"): \
+valgono più delle stime geometriche, che non vedono per esempio i supporti che lo slicer aggiunge sotto \
+spigoli e punte. Quando stime e sezionamento non concordano, segui il sezionamento e dillo.
 - Ribaltamento e brim sono calcolati per ogni orientamento: se consigli un orientamento con brim \
 consigliato, specifica tipo e larghezza del brim.
 - Nomina le opzioni come nell'interfaccia italiana di ElegooSlicer/OrcaSlicer; se non sei sicuro della \

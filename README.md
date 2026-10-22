@@ -45,6 +45,22 @@ Claude viene usato tramite il **Claude Agent SDK** con il login di Claude Code d
 comandi, niente modifiche. Per condividere lo strumento con altre persone serve invece una
 chiave API (`ANTHROPIC_API_KEY`), come chiede Anthropic per i prodotti di terzi.
 
+## Sezionamento reale con ElegooSlicer
+
+Se ElegooSlicer è installato, ogni orientamento candidato viene **sezionato davvero** dallo slicer
+(`slicer_cli.py`), con i profili di sistema indicati in `config.py` e supporti ad albero solo dal
+piatto. Lo slicer non ha un'API: si usa la sua riga di comando (`--slice`, `--load-settings`,
+`--load-filaments`) e si leggono i numeri nel G-code:
+
+- **tempo** stimato dallo slicer;
+- **grammi di pezzo, supporti e brim**, sommando l'estrusione di ogni tipo (`;TYPE:`) nel G-code.
+  Il totale dichiarato dallo slicer è qualche decimo di grammo più alto: conta anche retrazioni e
+  spurgo, che non sono materiale depositato.
+
+I profili di sistema ereditano l'uno dall'altro (`inherits`): vengono fusi in profili completi e
+lasciati marcati come "system", altrimenti la riga di comando li considera incompatibili (codice −17).
+Il profilo filamento si sceglie nella barra laterale. Un orientamento si seziona in circa 2 secondi.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
@@ -79,7 +95,6 @@ programma che lo include) va distribuito con una licenza compatibile.
 
 ## Da fare
 
-- Far sezionare gli orientamenti migliori a ElegooSlicer/OrcaSlicer da riga di comando
-  per avere tempi, filamento e supporti reali invece delle stime.
+- Usare i grammi reali dei supporti nel punteggio della classifica, al posto delle aree stimate.
 - Esportare il consiglio come profilo di processo da importare nello slicer.
 - Riconoscere i supporti dentro le cavità (oggi risultano "dal piatto" se la cavità è aperta in basso).
