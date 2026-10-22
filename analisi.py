@@ -125,10 +125,12 @@ def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
     contatto = float(mesh.area_faces[appoggio].sum())
     h = float(mesh.extents[2])
     rib = ribaltamento(mesh)
+    ingombro = MultiPoint([tuple(p) for p in mesh.convex_hull.vertices[:, :2]]).convex_hull.area
     return {
         **rib,
         **consiglio_brim(contatto, h, rib["si_ribalta"]),
         "altezza_mm": round(h, 1),
+        "ingombro_sul_piatto_mm2": round(float(ingombro), 1),
         "area_appoggio_mm2": round(contatto, 1),
         "supporti_dal_piatto_area_mm2": round(float(area_xy[dal_piatto].sum()), 1),
         "supporti_sul_pezzo_area_mm2": round(float(area_xy[sul_pezzo].sum()), 1),
@@ -139,6 +141,16 @@ def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
 
 
 APPOGGIO_MINIMO = 10.0    # mm2: sotto questo il pezzo poggia su punte o spigoli
+# Un pezzo instabile (su spigoli o che si ribalta) va tenuto su da brim o supporti per tutta la
+# sua ombra sul piatto: la penalità vale quindi come sostenere tutto l'ingombro, scalata col pezzo.
+PESO_INSTABILE = 1.0      # mm2 di penalità per mm2 di ingombro, per ciascun problema
+PENALITA_MINIMA = 200.0   # per pezzi minuscoli, dove l'ingombro sarebbe trascurabile
+
+
+def penalita_stabilita(o):
+    unita = max(PENALITA_MINIMA, PESO_INSTABILE * o["ingombro_sul_piatto_mm2"])
+    su_spigoli = o["area_appoggio_mm2"] < APPOGGIO_MINIMO
+    return unita * (int(su_spigoli) + int(o["si_ribalta"]))
 
 
 NOMI_SLICER = {"interfaccia": "slicer, pulsante Orienta", "riga_di_comando": "slicer, riga di comando"}
@@ -178,12 +190,11 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         v["scelto_da_slicer"] = [NOMI_SLICER[s["modo"]] for s in scelte_slicer if su @ np.array(s["su"]) > 0.999]
         out.append({"trasformazione": T.tolist(), **v})
     # punteggio semplice (più basso = meglio): i supporti sul pezzo pesano il triplo,
-    # l'appoggio su punte e il ribaltamento sono penalizzati perché il pezzo rischia di staccarsi
+    # l'appoggio su spigoli e il ribaltamento costano quanto sostenere tutto l'ingombro
     for o in out:
+        o["penalita_stabilita"] = round(penalita_stabilita(o), 1)
         o["punteggio"] = round(o["supporti_dal_piatto_area_mm2"] + 3 * o["supporti_sul_pezzo_area_mm2"]
-                               + 0.02 * o["volume_supporti_stimato_mm3"]
-                               + (200 if o["area_appoggio_mm2"] < APPOGGIO_MINIMO else 0)
-                               + (300 if o["si_ribalta"] else 0), 1)
+                               + 0.02 * o["volume_supporti_stimato_mm3"] + o["penalita_stabilita"], 1)
     out.sort(key=lambda o: o["punteggio"])
     for i, o in enumerate(out, 1):
         o["id"] = i

@@ -10,6 +10,7 @@ import streamlit as st
 import augura_addon
 import config
 import diario
+import orienta_slicer
 from analisi import analizza
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 from render import griglia_orientamenti, viste
@@ -42,9 +43,15 @@ def tabella_confronto(dati, cartella):
     scelte = [("Nostra classifica (primo posto)", dati["orientamenti"][0]["id"])]
     for s in dati.get("confronto_slicer", {}).get("scelte", []):
         scelte.append((s["chi"][0].upper() + s["chi"][1:], s["id"]))
-    consiglio = cartella / "consiglio.md"
-    if consiglio.exists():
-        scelte.append(("Claude", orientamento_scelto(consiglio.read_text(encoding="utf-8"))))
+    scelta_claude = cartella / "consiglio.json"
+    if scelta_claude.exists():
+        # la scelta è salvata come direzione: resta valida anche se la classifica cambia
+        su = json.loads(scelta_claude.read_text(encoding="utf-8")).get("su")
+        trovato = next((o["id"] for o in dati["orientamenti"] if su is not None
+                        and orienta_slicer.direzione_su(o["trasformazione"]) @ su > 0.999), None)
+        scelte.append(("Claude", trovato))
+    elif (cartella / "consiglio.md").exists():
+        scelte.append(("Claude", orientamento_scelto((cartella / "consiglio.md").read_text(encoding="utf-8"))))
     righe = []
     for chi, i in scelte:
         o = per_id.get(i, {})
@@ -157,6 +164,12 @@ with tab_analisi:
             else:
                 (cartella / "richiesta.json").write_text(json.dumps(richiesta, ensure_ascii=False, indent=2), encoding="utf-8")
                 (cartella / "consiglio.md").write_text(testo, encoding="utf-8")
+                n = orientamento_scelto(testo)
+                o = next((o for o in dati["orientamenti"] if o["id"] == n), None)
+                (cartella / "consiglio.json").write_text(json.dumps({
+                    "scelta_id": n,
+                    "su": orienta_slicer.direzione_su(o["trasformazione"]).round(4).tolist() if o else None,
+                }), encoding="utf-8")
                 st.session_state["costo"] = costo
         if (cartella / "consiglio.md").exists():
             st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))

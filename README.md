@@ -21,6 +21,11 @@ La pagina si apre su http://localhost:8501 ed è raggiungibile solo da questo PC
    che poggerebbero sul pezzo.
    Per ogni orientamento controlla anche se il pezzo **si ribalta** (baricentro fuori
    dall'impronta sul piatto) e se serve il **brim**.
+   **Punteggio** (più basso = meglio): area dei supporti dal piatto + 3 × quella dei supporti
+   sul pezzo + 0,02 × volume dei supporti + penalità di stabilità. Se il pezzo tocca il piatto
+   solo con spigoli (meno di 10 mm²) o si ribalta, ogni problema aggiunge quanto il suo
+   **ingombro sul piatto** (minimo 200): un pezzo instabile va sostenuto da brim o supporti per
+   tutta la sua ombra. Pesi e soglie sono in cima ad `analisi.py`.
    Tra i candidati ci sono anche le scelte dell'**orientamento automatico dello slicer**
    (`orienta_slicer.py`): l'algoritmo di OrcaSlicer, da cui deriva ElegooSlicer, tradotto in
    Python, nei due modi in cui lo usa lo slicer (pulsante "Orienta" dell'interfaccia e riga di
