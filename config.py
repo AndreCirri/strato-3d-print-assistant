@@ -14,6 +14,9 @@ STAMPANTE = {
     "profilo_processo_abituale": "0.16mm Optimal @Elegoo CC 0.4 nozzle",
 }
 
-FILAMENTI = ["PLA", "PETG", "PLA-CF", "ASA", "ABS", "TPU 95A"]
+UGELLO_MM = 0.4
+VOLUME_STAMPA = (256, 256, 256)      # mm, Centauri Carbon: usato dall'add-on augura
+
+FILAMENTI =["PLA", "PETG", "PLA-CF", "ASA", "ABS", "TPU 95A"]
 
 MODELLI = {"Opus (più accurato)": "opus", "Sonnet (più rapido)": "sonnet"}

@@ -19,6 +19,8 @@ La pagina si apre su http://localhost:8501 ed è raggiungibile solo da questo PC
    e per ogni orientamento candidato (quello del file più le pose stabili) l'area di appoggio
    e le superfici che chiedono supporti, distinguendo quelli che partono dal piatto da quelli
    che poggerebbero sul pezzo.
+   Per ogni orientamento controlla anche se il pezzo **si ribalta** (baricentro fuori
+   dall'impronta sul piatto) e se serve il **brim**.
 2. **Immagini** (`render.py`): gli orientamenti con le sporgenze colorate
    (rosso = supporto dal piatto, arancione = supporto sul pezzo).
 3. **Consiglio** (`consiglio.py`): Claude riceve numeri, immagini, stampante, scopo del pezzo
@@ -31,6 +33,22 @@ Claude viene usato tramite il **Claude Agent SDK** con il login di Claude Code d
 (abbonamento: nessun costo extra, conta sui limiti d'uso). Può solo leggere file: niente
 comandi, niente modifiche. Per condividere lo strumento con altre persone serve invece una
 chiave API (`ANTHROPIC_API_KEY`), come chiede Anthropic per i prodotti di terzi.
+
+## Add-on augura (facoltativo)
+
+[augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
+OpenCASCADE. Si installa a parte, in `.venv-augura` (circa 700 MB), con
+`addon_augura\installa.bat`; senza, l'assistente funziona come prima. Con l'add-on:
+
+- si possono caricare file **STEP**: vengono convertiti in STL per l'analisi e le immagini;
+- sugli STEP augura dà controlli esatti (soffitti e ponti con la loro luce, spessori,
+  particolari minimi) e la sua classifica degli orientamenti;
+- sugli STL i suoi controlli sono approssimati (sporgenze, ribaltamento, brim) e non c'è
+  ricerca dell'orientamento.
+
+augura non funziona senza build123d (lo importa anche per gli STL), quindi l'add-on non ha una
+versione leggera. La versione è bloccata a 0.1.8 perché il progetto è pre-alpha.
+Per toglierlo basta cancellare la cartella `.venv-augura`.
 
 ## Personalizzare
 

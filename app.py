@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+import augura_addon
 import config
 import diario
 from analisi import analizza
@@ -24,6 +25,13 @@ with st.sidebar:
                "conta sui limiti d'uso. Il costo mostrato è l'equivalente API.")
     st.subheader("Stampante")
     st.json(config.STAMPANTE, expanded=False)
+    st.subheader("Add-on")
+    ADDON = augura_addon.disponibile()
+    if ADDON:
+        st.success("augura attivo: file STEP e controlli in più")
+    else:
+        st.caption("augura non installato. Per file STEP e controlli esatti: "
+                   "`addon_augura\\installa.bat` (circa 700 MB), poi riavvia.")
 
 tab_analisi, tab_diario, tab_storico = st.tabs(["Analizza un pezzo", "Diario di stampa", "Analisi passate"])
 
@@ -36,7 +44,8 @@ def nome_lavoro(nome_file):
 # ------------------------------------------------------------------ analisi
 with tab_analisi:
     st.subheader("1. Il pezzo e cosa ti serve")
-    file = st.file_uploader("File da stampare", type=["stl", "3mf", "obj"])
+    formati = ["stl", "3mf", "obj"] + (["step", "stp"] if ADDON else [])
+    file = st.file_uploader("File da stampare", type=formati)
     c1, c2 = st.columns(2)
     with c1:
         scopo = st.text_area("A cosa serve, dove va montato",
@@ -54,14 +63,22 @@ with tab_analisi:
     if file and st.button("Analizza la geometria", type="primary"):
         cartella = config.LAVORI / nome_lavoro(file.name)
         cartella.mkdir(parents=True)
-        percorso = cartella / file.name
-        percorso.write_bytes(file.getvalue())
+        originale = cartella / file.name
+        originale.write_bytes(file.getvalue())
+        percorso = originale
+        if originale.suffix.lower() in augura_addon.FORMATI_STEP:
+            percorso = originale.with_suffix(".stl")
+            with st.spinner("Converto lo STEP in STL..."):
+                augura_addon.step_in_stl(originale, percorso)
         with st.spinner("Calcolo spessori, sporgenze e orientamenti..."):
             mesh, dati = analizza(percorso)
             griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
             for o in dati["orientamenti"][:2]:
                 viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png",
                       f"Orientamento {o['id']} ({o['origine']})")
+        if ADDON:
+            with st.spinner("Controlli di augura..."):
+                dati["augura"] = augura_addon.verifica(originale)
         (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
         st.session_state["lavoro"] = str(cartella)
 
@@ -85,6 +102,20 @@ with tab_analisi:
         st.image(str(cartella / "orientamenti.png"))
         for img in sorted(cartella.glob("viste_*.png")):
             st.image(str(img))
+
+        if "augura" in dati:
+            au = dati["augura"]
+            st.markdown(f"**Controlli di augura** — geometria {au['geometria']}")
+            gravita = {"error": "🔴 errore", "warning": "🟠 avviso", "info": "🔵 info"}
+            righe = [{"livello": gravita.get(f["severity"], f["severity"]), "controllo": f["kind"], "messaggio": f["message"]}
+                     for f in au.get("controlli_come_nel_file", [])]
+            if righe:
+                st.dataframe(pd.DataFrame(righe), width="stretch", hide_index=True)
+            if au.get("orientamenti"):
+                st.caption("Orientamenti secondo augura (rotazione X, Y, Z in gradi rispetto al file)")
+                st.dataframe(pd.DataFrame(au["orientamenti"]), width="stretch")
+            for e in au.get("errori", []):
+                st.warning(f"augura: {e}")
 
         st.subheader("3. Consiglio di Claude")
         if st.button("Chiedi a Claude come stamparlo", type="primary"):

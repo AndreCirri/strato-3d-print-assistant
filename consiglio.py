@@ -20,6 +20,11 @@ Regole:
 Se un dato manca o è incerto, dillo.
 - Guarda le immagini con lo strumento Read prima di decidere: rosso = superficie che chiede supporti \
 che partono dal piatto, arancione = supporti che poggerebbero sul pezzo (i più difficili da togliere).
+- Se l'analisi contiene "augura", sono controlli di un secondo strumento: esatti per i file STEP \
+(ponti, spessori, orientamenti), approssimati per gli STL. Se i due strumenti non concordano, dillo e \
+spiega quale è più affidabile in quel caso.
+- Ribaltamento e brim sono calcolati per ogni orientamento: se consigli un orientamento con brim \
+consigliato, specifica tipo e larghezza del brim.
 - Nomina le opzioni come nell'interfaccia italiana di ElegooSlicer/OrcaSlicer; se non sei sicuro della \
 traduzione, aggiungi il nome inglese di OrcaSlicer tra parentesi.
 - Dai valori concreti per la stampante e i materiali indicati, non intervalli generici.

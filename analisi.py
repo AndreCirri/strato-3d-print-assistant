@@ -8,6 +8,7 @@ import warnings
 from collections import Counter
 import numpy as np
 import trimesh
+from shapely.geometry import MultiPoint, Point
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="trimesh")
 
@@ -41,7 +42,8 @@ def spessori(mesh, rng):
     orig = mesh.triangles_center[idx] - n * 1e-3
     loc, iray, _ = mesh.ray.intersects_location(orig, -n, multiple_hits=False)
     d = np.full(len(idx), np.nan)
-    d[iray] = np.linalg.norm(loc - orig[iray], axis=1)
+    if len(iray):
+        d[iray] = np.linalg.norm(np.asarray(loc).reshape(-1, 3) - orig[iray], axis=1)
     area = mesh.area_faces[idx]
     ok = ~np.isnan(d)
     d, area = d[ok], area[ok]
@@ -74,12 +76,44 @@ def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None):
         giu = np.tile([0.0, 0.0, -1.0], (len(idx), 1))
         loc, iray, _ = mesh.ray.intersects_location(orig, giu, multiple_hits=False)
         colpito = np.zeros(len(idx), bool)
-        colpito[iray] = True
         dist = zc[idx] - zmin
-        dist[iray] = orig[iray, 2] - loc[:, 2]
+        if len(iray):                      # nessun raggio a segno: tutte le sporgenze vanno al piatto
+            colpito[iray] = True
+            dist[iray] = orig[iray, 2] - np.asarray(loc).reshape(-1, 3)[:, 2]
         tipo[idx] = np.where(colpito, 2, 1)
         distanza[idx] = dist
     return tipo, distanza, appoggio
+
+
+def ribaltamento(mesh, tolleranza=0.05):
+    """Il baricentro cade dentro l'impronta sul piatto? L'impronta è il contorno convesso
+    di tutti i punti che toccano il piatto (anche punte lontane tra loro, come perno e linguetta)."""
+    zmin = mesh.bounds[0, 2]
+    punti = mesh.vertices[mesh.vertices[:, 2] < zmin + tolleranza][:, :2]
+    impronta = MultiPoint([tuple(p) for p in punti]).convex_hull
+    try:
+        cm = mesh.center_mass if mesh.is_volume else mesh.centroid
+    except Exception:
+        cm = mesh.centroid
+    baricentro = Point(float(cm[0]), float(cm[1]))
+    dentro = impronta.buffer(1e-6).contains(baricentro)
+    bordo = impronta.exterior if impronta.geom_type == "Polygon" else impronta
+    margine = bordo.distance(baricentro) * (1 if dentro else -1)
+    return {"si_ribalta": not dentro, "margine_baricentro_mm": round(float(margine), 1),
+            "area_impronta_mm2": round(float(impronta.area), 1)}
+
+
+def consiglio_brim(contatto, altezza, ribalta):
+    motivi = []
+    if ribalta:
+        motivi.append("il baricentro cade fuori dall'appoggio")
+    if contatto < 30:
+        motivi.append(f"appoggio piccolo ({contatto:.0f} mm²)")
+    rapporto = altezza / math.sqrt(contatto) if contatto > 0 else float("inf")
+    if rapporto > 4:
+        motivi.append("pezzo alto rispetto all'appoggio (rapporto "
+                      + ("infinito" if math.isinf(rapporto) else f"{rapporto:.1f}") + ")")
+    return {"brim_consigliato": bool(motivi), "brim_motivo": "; ".join(motivi)}
 
 
 def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
@@ -88,7 +122,10 @@ def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
     dal_piatto, sul_pezzo = tipo == 1, tipo == 2
     contatto = float(mesh.area_faces[appoggio].sum())
     h = float(mesh.extents[2])
+    rib = ribaltamento(mesh)
     return {
+        **rib,
+        **consiglio_brim(contatto, h, rib["si_ribalta"]),
         "altezza_mm": round(h, 1),
         "area_appoggio_mm2": round(contatto, 1),
         "supporti_dal_piatto_area_mm2": round(float(area_xy[dal_piatto].sum()), 1),
@@ -120,14 +157,19 @@ def orientamenti(mesh, n=6):
             avvisi.append("appoggia su punte o spigoli: senza brim o supporti si stacca")
         if v["supporti_sul_pezzo_area_mm2"] > 0:
             avvisi.append("alcune sporgenze poggerebbero sul pezzo stesso (supporti difficili da togliere)")
+        if v["si_ribalta"]:
+            avvisi.append("si ribalta: il baricentro è fuori dall'appoggio, lo reggono solo i supporti")
+        if v["brim_consigliato"]:
+            avvisi.append("serve il brim: " + v["brim_motivo"])
         v["avvisi"] = avvisi
         out.append({"trasformazione": T.tolist(), **v})
     # punteggio semplice (più basso = meglio): i supporti sul pezzo pesano il triplo,
-    # l'appoggio su punte è penalizzato perché il pezzo rischia di staccarsi
+    # l'appoggio su punte e il ribaltamento sono penalizzati perché il pezzo rischia di staccarsi
     for o in out:
         o["punteggio"] = round(o["supporti_dal_piatto_area_mm2"] + 3 * o["supporti_sul_pezzo_area_mm2"]
                                + 0.02 * o["volume_supporti_stimato_mm3"]
-                               + (200 if o["area_appoggio_mm2"] < APPOGGIO_MINIMO else 0), 1)
+                               + (200 if o["area_appoggio_mm2"] < APPOGGIO_MINIMO else 0)
+                               + (300 if o["si_ribalta"] else 0), 1)
     out.sort(key=lambda o: o["punteggio"])
     for i, o in enumerate(out, 1):
         o["id"] = i
