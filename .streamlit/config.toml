@@ -1,0 +1,8 @@
+[server]
+address = "localhost"   # raggiungibile solo da questo PC
+port = 8501
+headless = true
+maxUploadSize = 200
+
+[browser]
+gatherUsageStats = false
