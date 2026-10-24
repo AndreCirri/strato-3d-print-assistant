@@ -35,7 +35,7 @@ with st.sidebar:
                                          index=filamenti_slicer.index(config.PROFILO_FILAMENTO)
                                          if config.PROFILO_FILAMENTO in filamenti_slicer else 0)
         st.caption(f"ElegooSlicer seziona ogni orientamento con «{config.PROFILO_PROCESSO}» e supporti ad albero "
-                   "solo dal piatto (soglia 30°): grammi e tempi veri, non stime.")
+                   f"solo dal piatto (soglia {config.SOGLIA_SUPPORTI}°): grammi e tempi veri, non stime.")
     else:
         st.caption("ElegooSlicer non trovato: niente sezionamento reale.")
     st.subheader("Add-on")

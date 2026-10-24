@@ -10,12 +10,13 @@ import numpy as np
 import trimesh
 from shapely.geometry import MultiPoint, Point
 
+import config
 import orienta_slicer
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="trimesh")
 
 MAX_RAGGI = 20000          # facce campionate per i calcoli con i raggi (pezzi grandi)
-SOGLIA_SUPPORTI = 30.0     # gradi rispetto all'orizzontale, come "Angolo di soglia" dello slicer
+SOGLIA_SUPPORTI = float(config.SOGLIA_SUPPORTI)   # la stessa passata allo slicer
 DENSITA = {"PLA": 1.24, "PETG": 1.27, "ASA": 1.07, "ABS": 1.04, "TPU": 1.21, "PLA-CF": 1.29}
 
 

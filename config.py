@@ -18,9 +18,12 @@ STAMPANTE = {
 PROFILO_STAMPANTE = "Elegoo Centauri Carbon 0.4 nozzle"
 PROFILO_PROCESSO = "0.16mm Optimal @Elegoo CC 0.4 nozzle"
 PROFILO_FILAMENTO = "Elegoo PETG @ECC"
-# supporti come nelle tue impostazioni: ad albero, solo dal piatto, soglia 30°
+# Gradi rispetto all'orizzontale, come "Angolo di soglia" dello slicer: le superfici meno inclinate
+# chiedono supporti. Unico valore: lo usano sia l'analisi geometrica sia il sezionamento reale.
+SOGLIA_SUPPORTI = 30
+# supporti come nelle tue impostazioni: ad albero, solo dal piatto
 SUPPORTI_SEZIONAMENTO = {"enable_support": "1", "support_type": "tree(auto)",
-                         "support_threshold_angle": "30", "support_on_build_plate_only": "1"}
+                         "support_threshold_angle": str(SOGLIA_SUPPORTI), "support_on_build_plate_only": "1"}
 
 UGELLO_MM = 0.4
 VOLUME_STAMPA = (256, 256, 256)      # mm, Centauri Carbon: usato dall'add-on augura
