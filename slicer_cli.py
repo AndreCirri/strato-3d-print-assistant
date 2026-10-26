@@ -149,13 +149,17 @@ def profili(processo, filamento, modifiche_processo=None):
     return (profilo(config.PROFILO_STAMPANTE), profilo(processo, modifiche_processo), profilo(filamento))
 
 
-def seziona_orientamenti(mesh, orientamenti, cartella, processo, filamento, modifiche_processo=None):
+def seziona_orientamenti(mesh, orientamenti, cartella, processo, filamento, modifiche_processo=None,
+                         avanzamento=None):
     """Seziona ogni orientamento candidato (STL già ruotato e appoggiato sul piatto).
-    Ritorna {id: risultati} e scrive i risultati anche dentro ogni orientamento."""
+    Ritorna {id: risultati} e scrive i risultati anche dentro ogni orientamento.
+    avanzamento(i, o), se c'è, viene chiamata prima di sezionare l'i-esimo orientamento."""
     macchina, proc, fil = profili(processo, filamento, modifiche_processo)
     cartella = Path(cartella)
     risultati = {}
-    for o in orientamenti:
+    for i, o in enumerate(orientamenti):
+        if avanzamento:
+            avanzamento(i, o)
         sotto = cartella / f"orientamento_{o['id']}"
         sotto.mkdir(parents=True, exist_ok=True)
         m = mesh.copy()

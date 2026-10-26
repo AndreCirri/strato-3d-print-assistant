@@ -83,6 +83,10 @@ def nome_lavoro(nome_file):
     return f"{datetime.now():%Y%m%d-%H%M%S}_{base}"
 
 
+def salva_analisi(cartella, dati):
+    (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 # ------------------------------------------------------------------ analisi
 with tab_analisi:
     st.subheader("1. Il pezzo e cosa ti serve")
@@ -118,19 +122,34 @@ with tab_analisi:
             for o in dati["orientamenti"][:2]:
                 viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png",
                       f"Orientamento {o['id']} ({o['origine']})")
+        # salvata subito: se il sezionamento viene interrotto, l'analisi geometrica resta
+        salva_analisi(cartella, dati)
+        st.session_state["lavoro"] = str(cartella)
         if SLICER:
-            with st.spinner("ElegooSlicer seziona ogni orientamento (qualche secondo ciascuno)..."):
-                slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
-                                                config.PROFILO_PROCESSO, profilo_filamento,
-                                                config.SUPPORTI_SEZIONAMENTO)
-                dati["sezionamento"] = {"processo": config.PROFILO_PROCESSO, "filamento": profilo_filamento,
-                                        "supporti": config.SUPPORTI_SEZIONAMENTO}
+            # ogni interazione con la pagina fa ripartire lo script e butta via il lavoro in corso
+            avviso = st.info("Il sezionamento richiede circa un minuto per orientamento: non toccare la pagina finché non finisce.")
+            n = len(dati["orientamenti"])
+            barra = st.progress(0.0, text=f"ElegooSlicer seziona {n} orientamenti...")
+
+            def avanzamento(i, o):
+                barra.progress(i / n, text=f"ElegooSlicer seziona l'orientamento {o['id']} ({i + 1} di {n})...")
+
+            slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
+                                            config.PROFILO_PROCESSO, profilo_filamento,
+                                            config.SUPPORTI_SEZIONAMENTO, avanzamento)
+            barra.empty()
+            avviso.empty()
+            dati["sezionamento"] = {"processo": config.PROFILO_PROCESSO, "filamento": profilo_filamento,
+                                    "supporti": config.SUPPORTI_SEZIONAMENTO}
         # sugli STL augura ripete in modo approssimato controlli che l'analisi fa già: solo per gli STEP
         if ADDON and originale.suffix.lower() in augura_addon.FORMATI_STEP:
             with st.spinner("Controlli di augura sulla geometria esatta dello STEP..."):
                 dati["augura"] = augura_addon.verifica(originale)
-        (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
-        st.session_state["lavoro"] = str(cartella)
+        salva_analisi(cartella, dati)
+
+    if "lavoro" in st.session_state and not (Path(st.session_state["lavoro"]) / "analisi.json").exists():
+        st.warning("Questa analisi era stata interrotta prima di essere salvata: ricarica il file e rifalla.")
+        del st.session_state["lavoro"]
 
     if "lavoro" in st.session_state:
         cartella = Path(st.session_state["lavoro"])
@@ -272,6 +291,8 @@ with tab_storico:
                 st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
             else:
                 st.caption("Solo analisi geometrica, nessun consiglio richiesto.")
-            if st.button("Riapri nella scheda Analizza", key=f"apri{nome}"):
+            if not (cartella / "analisi.json").exists():
+                st.caption("Analisi interrotta prima del salvataggio: non si può riaprire.")
+            elif st.button("Riapri nella scheda Analizza", key=f"apri{nome}"):
                 st.session_state["lavoro"] = str(cartella)
                 st.rerun()
