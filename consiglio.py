@@ -8,8 +8,6 @@ import json
 import re
 from pathlib import Path
 
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
-
 import config
 
 SISTEMA = """Sei un tutor esperto di stampa 3D FDM. Aiuti una persona che sa programmare ma sta \
@@ -69,6 +67,8 @@ def _diario_recente(n=15):
 
 
 async def _chiedi(prompt, cartella, modello):
+    # l'SDK pesa qualche secondo: lo carica la prima domanda, non l'avvio della dashboard
+    from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
     opzioni = ClaudeAgentOptions(
         system_prompt=SISTEMA,
         tools=["Read"],                 # può solo leggere (immagini e file della cartella)

@@ -11,7 +11,6 @@ riconosciute, quindi non hanno la penalità extra; la rotazione attorno a Z per 
 c'è (non cambia supporti né appoggio). Il risultato è quindi una stima della scelta dello slicer.
 """
 import numpy as np
-import trimesh
 
 EPSILON = 1e-4                     # libslic3r.h
 PARAMETRI = {
@@ -107,6 +106,7 @@ def scelta_slicer(mesh, soglia_gradi=30.0, modo="interfaccia"):
             if abs(r[1] @ z - 1) < EPSILON * EPSILON:
                 migliore = r
                 break
+    import trimesh  # qui e non in cima: la dashboard importa il modulo solo per direzione_su
     T = trimesh.geometry.align_vectors(migliore[1], z)
     return {"modo": modo, "angolo_gradi": soglia_gradi,
             "su": migliore[1].round(4).tolist(), "costo": round(migliore[0], 3), "trasformazione": T.tolist(),

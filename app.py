@@ -1,4 +1,8 @@
-"""Assistente di stampa 3D. Avvio:  streamlit run app.py"""
+"""Assistente di stampa 3D. Avvio:  streamlit run app.py
+
+analisi e render (trimesh, matplotlib) si importano solo quando si analizza un pezzo:
+caricarli all'avvio costava più di dieci secondi prima che comparisse la pagina."""
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -12,13 +16,37 @@ import config
 import diario
 import orienta_slicer
 import slicer_cli
-from analisi import analizza
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
-from render import griglia_orientamenti, viste
 
 st.set_page_config(page_title="Assistente stampa 3D", page_icon="🧩", layout="wide")
 for d in (config.LAVORI, config.FOTO):
     d.mkdir(exist_ok=True)
+
+# campi del modulo "Il pezzo e cosa ti serve": salvati in richiesta.json e ripristinati alla riapertura
+CAMPI_RICHIESTA = {"scopo": "scopo", "tipo": "uso", "priorita": "priorita", "condizioni": "ambiente",
+                   "filamenti_disponibili": "filamenti", "multimateriale_per_supporti": "multimateriale",
+                   "note": "note"}
+FORMATI_MODELLO = {".stl", ".3mf", ".obj", ".step", ".stp"}
+
+
+def apri_lavoro(cartella):
+    """Apre un lavoro salvato: niente da ricalcolare, si rileggono i file della sua cartella.
+    I campi del modulo si ripristinano al giro successivo, prima che i widget vengano creati."""
+    st.session_state["lavoro"] = str(cartella)
+    st.query_params["lavoro"] = cartella.name     # nell'URL: il lavoro resta aperto anche ricaricando la pagina
+    richiesta = cartella / "richiesta.json"
+    if richiesta.exists():
+        st.session_state["da_ripristinare"] = json.loads(richiesta.read_text(encoding="utf-8"))
+
+
+if "lavoro" not in st.session_state and "lavoro" in st.query_params:
+    salvato = config.LAVORI / Path(st.query_params["lavoro"]).name
+    if (salvato / "analisi.json").exists():
+        apri_lavoro(salvato)
+for campo, chiave in CAMPI_RICHIESTA.items():
+    if campo in st.session_state.get("da_ripristinare", {}):
+        st.session_state[chiave] = st.session_state["da_ripristinare"][campo]
+st.session_state.pop("da_ripristinare", None)
 
 with st.sidebar:
     st.header("Impostazioni")
@@ -87,26 +115,92 @@ def salva_analisi(cartella, dati):
     (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def impronta(contenuto):
+    return hashlib.sha256(contenuto).hexdigest()
+
+
+@st.cache_data(show_spinner=False)
+def _impronta_file(percorso, _modificato):
+    return impronta(Path(percorso).read_bytes())
+
+
+@st.cache_data(show_spinner=False)
+def _leggi_analisi(percorso, _modificato):
+    return json.loads(Path(percorso).read_text(encoding="utf-8"))
+
+
+def lavori_salvati():
+    """Le analisi complete (con analisi.json), dalla più recente. Per ognuna: cartella, analisi, impronte del file."""
+    out = []
+    for cartella in sorted((p for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True):
+        f = cartella / "analisi.json"
+        if not f.exists():
+            continue
+        dati = _leggi_analisi(str(f), f.stat().st_mtime)
+        # i lavori salvati prima dell'impronta in analisi.json: si calcola dal file nella cartella
+        impronte = {dati["sha256"]} if "sha256" in dati else {
+            _impronta_file(str(p), p.stat().st_mtime) for p in cartella.iterdir() if p.suffix.lower() in FORMATI_MODELLO}
+        out.append({"cartella": cartella, "dati": dati, "impronte": impronte})
+    return out
+
+
+def descrivi_lavoro(cartella, dati):
+    """'26/10 15:03 — sezionato con «Elegoo PETG @ECC» — consiglio di Claude'"""
+    try:
+        quando = datetime.strptime(cartella.name[:15], "%Y%m%d-%H%M%S").strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        quando = cartella.name
+    parti = [quando]
+    if "sezionamento" in dati:
+        parti.append(f"sezionato con «{dati['sezionamento']['filamento']}»")
+    parti.append("consiglio di Claude" if (cartella / "consiglio.md").exists() else "senza consiglio")
+    return " — ".join(parti)
+
+
 # ------------------------------------------------------------------ analisi
 with tab_analisi:
     st.subheader("1. Il pezzo e cosa ti serve")
     formati = ["stl", "3mf", "obj"] + (["step", "stp"] if ADDON else [])
     file = st.file_uploader("File da stampare", type=formati)
     c1, c2 = st.columns(2)
+    # valori iniziali in session_state e non come default dei widget: così la riapertura può sovrascriverli
+    st.session_state.setdefault("filamenti", ["PLA", "PETG"])
     with c1:
-        scopo = st.text_area("A cosa serve, dove va montato",
+        scopo = st.text_area("A cosa serve, dove va montato", key="scopo",
                              placeholder="es. pulsante della lavatrice: la linguetta fa da molla, il perno preme l'interruttore")
-        uso = st.selectbox("Tipo di pezzo", ["funzionale / meccanico", "estetico", "prototipo veloce", "misto"])
+        uso = st.selectbox("Tipo di pezzo", ["funzionale / meccanico", "estetico", "prototipo veloce", "misto"], key="uso")
         priorita = st.selectbox("Cosa conta di più", ["robustezza e rigidità", "superficie bella", "precisione delle misure",
-                                                      "velocità di stampa", "poco materiale"])
+                                                      "velocità di stampa", "poco materiale"], key="priorita")
     with c2:
         ambiente = st.multiselect("Condizioni d'uso", ["caldo oltre 50 °C", "umidità o acqua", "all'aperto (sole)",
-                                                       "sforzi ripetuti / flessione", "urti", "contatto con alimenti"])
-        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, default=["PLA", "PETG"])
-        multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti")
-        note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)")
+                                                       "sforzi ripetuti / flessione", "urti", "contatto con alimenti"],
+                                  key="ambiente")
+        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, key="filamenti")
+        multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti",
+                                     key="multimateriale")
+        note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)", key="note")
 
-    if file and st.button("Analizza la geometria", type="primary"):
+    analizza_ora = False
+    if file:
+        sha = impronta(file.getvalue())
+        gia_fatto = next((l for l in lavori_salvati() if sha in l["impronte"]), None)
+        if gia_fatto is None:
+            analizza_ora = st.button("Analizza la geometria", type="primary")
+        elif str(gia_fatto["cartella"]) == st.session_state.get("lavoro"):
+            st.caption(f"Stai guardando l'analisi salvata di questo file ({descrivi_lavoro(gia_fatto['cartella'], gia_fatto['dati'])}).")
+            analizza_ora = st.button("Rifai l'analisi da capo")
+        else:
+            st.info(f"Questo file è già stato analizzato: {descrivi_lavoro(gia_fatto['cartella'], gia_fatto['dati'])}. "
+                    "Puoi riaprire l'analisi salvata senza rifare i calcoli.")
+            b1, b2 = st.columns([1, 3])
+            if b1.button("Riapri l'analisi salvata", type="primary"):
+                apri_lavoro(gia_fatto["cartella"])
+                st.rerun()
+            analizza_ora = b2.button("Rifai l'analisi da capo")
+
+    if analizza_ora:
+        from analisi import analizza
+        from render import griglia_orientamenti, viste
         cartella = config.LAVORI / nome_lavoro(file.name)
         cartella.mkdir(parents=True)
         originale = cartella / file.name
@@ -118,13 +212,14 @@ with tab_analisi:
                 augura_addon.step_in_stl(originale, percorso)
         with st.spinner("Calcolo spessori, sporgenze e orientamenti..."):
             mesh, dati = analizza(percorso)
+            dati["sha256"] = sha
             griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
             for o in dati["orientamenti"][:2]:
                 viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png",
                       f"Orientamento {o['id']} ({o['origine']})")
         # salvata subito: se il sezionamento viene interrotto, l'analisi geometrica resta
         salva_analisi(cartella, dati)
-        st.session_state["lavoro"] = str(cartella)
+        apri_lavoro(cartella)
         if SLICER:
             # ogni interazione con la pagina fa ripartire lo script e butta via il lavoro in corso
             avviso = st.info("Il sezionamento richiede circa un minuto per orientamento: non toccare la pagina finché non finisce.")
@@ -150,6 +245,7 @@ with tab_analisi:
     if "lavoro" in st.session_state and not (Path(st.session_state["lavoro"]) / "analisi.json").exists():
         st.warning("Questa analisi era stata interrotta prima di essere salvata: ricarica il file e rifalla.")
         del st.session_state["lavoro"]
+        st.query_params.pop("lavoro", None)
 
     if "lavoro" in st.session_state:
         cartella = Path(st.session_state["lavoro"])
@@ -223,12 +319,13 @@ with tab_analisi:
                 (cartella / "consiglio.json").write_text(json.dumps({
                     "scelta_id": n,
                     "su": orienta_slicer.direzione_su(o["trasformazione"]).round(4).tolist() if o else None,
+                    "modello": modello, "costo_usd": costo,
                 }), encoding="utf-8")
-                st.session_state["costo"] = costo
         if (cartella / "consiglio.md").exists():
             st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
-            if st.session_state.get("costo") is not None:
-                st.caption(f"Equivalente API: {st.session_state['costo']:.3f} $")
+            info = json.loads((cartella / "consiglio.json").read_text(encoding="utf-8"))                 if (cartella / "consiglio.json").exists() else {}
+            if info.get("costo_usd") is not None:
+                st.caption(f"Modello {info.get('modello')}, equivalente API: {info['costo_usd']:.3f} $")
             st.info("Dopo la stampa annota com'è andata nella scheda **Diario di stampa**: "
                     "le prossime analisi ne terranno conto.")
 
@@ -282,17 +379,18 @@ with tab_diario:
 
 # ------------------------------------------------------------------ storico
 with tab_storico:
+    st.caption("Ogni analisi è salvata con immagini, sezionamenti e consiglio di Claude: riaprirla non ricalcola niente.")
+    salvati = {l["cartella"].name: l["dati"] for l in lavori_salvati()}
     for nome in sorted((p.name for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True):
         cartella = config.LAVORI / nome
-        with st.expander(nome):
+        if nome not in salvati:
+            st.caption(f"{nome}: analisi interrotta prima del salvataggio, non si può riaprire.")
+            continue
+        with st.expander(f"{nome[16:] or nome} — {descrivi_lavoro(cartella, salvati[nome])}"):
+            if st.button("Riapri nella scheda Analizza", key=f"apri{nome}", type="primary"):
+                apri_lavoro(cartella)
+                st.rerun()
             if (cartella / "orientamenti.png").exists():
                 st.image(str(cartella / "orientamenti.png"))
             if (cartella / "consiglio.md").exists():
                 st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
-            else:
-                st.caption("Solo analisi geometrica, nessun consiglio richiesto.")
-            if not (cartella / "analisi.json").exists():
-                st.caption("Analisi interrotta prima del salvataggio: non si può riaprire.")
-            elif st.button("Riapri nella scheda Analizza", key=f"apri{nome}"):
-                st.session_state["lavoro"] = str(cartella)
-                st.rerun()

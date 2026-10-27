@@ -14,6 +14,8 @@ python -m venv .venv
 ```
 
 La pagina si apre su http://localhost:8501 ed è raggiungibile solo da questo PC.
+La dashboard compare in pochi secondi: le librerie pesanti (trimesh, matplotlib, Claude Agent SDK)
+si caricano solo alla prima analisi o alla prima domanda a Claude.
 
 ## Come funziona
 
@@ -88,7 +90,11 @@ Per toglierlo basta cancellare la cartella `.venv-augura`.
 
 ## Dati
 
-- `lavori/`: una cartella per ogni analisi (file, analisi.json, immagini, consiglio.md)
+- `lavori/`: una cartella per ogni analisi (file, analisi.json, immagini, sezionamenti, consiglio.md,
+  richiesta.json con i campi del modulo, consiglio.json con scelta, modello e costo).
+  Ogni analisi si riprende senza ricalcolare niente: dalla scheda **Analisi passate**, ricaricando la
+  pagina (il lavoro aperto resta nell'indirizzo, `?lavoro=...`) o caricando di nuovo lo stesso file,
+  che viene riconosciuto dall'impronta SHA-256 e propone di riaprire l'analisi salvata.
 - `diario.jsonl` e `foto/`: il diario di stampa
 
 ## Licenze
