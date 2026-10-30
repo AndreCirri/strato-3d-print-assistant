@@ -1,12 +1,17 @@
 """Add-on facoltativo: augura (https://github.com/pzfreo/augura), in un ambiente Python a parte.
 
-Se l'ambiente .venv-augura non c'è, l'assistente funziona come prima. Se c'è:
+Disattivato finché non lo si installa (dalla barra laterale della dashboard, o con
+addon_augura/installa.bat); da lì si può anche rimuovere. Senza, l'assistente funziona come prima. Se c'è:
 - accetta file STEP (convertiti in STL con build123d per l'analisi e le immagini);
 - aggiunge i controlli di augura: esatti sugli STEP (ponti, spessori, orientamenti),
   approssimati sugli STL.
 """
 import json
+import os
+import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -17,10 +22,39 @@ PYTHON = VENV / "Scripts" / "python.exe"
 AUGURA = VENV / "Scripts" / "augura.exe"
 PONTE = config.CARTELLA / "addon_augura" / "ponte.py"
 FORMATI_STEP = {".step", ".stp"}
+# versione bloccata: augura è pre-alpha e l'interfaccia può cambiare tra le 0.1.x
+VERSIONE = "0.1.8"
 
 
 def disponibile():
     return PYTHON.exists() and AUGURA.exists()
+
+
+def installa():
+    """Crea .venv-augura e ci installa augura (circa 700 MB: build123d + OpenCASCADE).
+    Generatore: restituisce le righe di uscita man mano, per mostrarle mentre scarica."""
+    comandi = [[PYTHON, "-m", "pip", "install", "--upgrade", "pip"],
+               [PYTHON, "-m", "pip", "install", f"augura=={VERSIONE}"]]
+    if not PYTHON.exists():
+        comandi.insert(0, [sys.executable, "-m", "venv", VENV])
+    for comando in comandi:
+        yield "> " + " ".join(str(c) for c in comando)
+        p = subprocess.Popen([str(c) for c in comando], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, encoding="utf-8", errors="replace", cwd=tempfile.gettempdir())
+        for riga in p.stdout:
+            yield riga.rstrip()
+        if p.wait() != 0:
+            raise RuntimeError(f"installazione non riuscita (uscita {p.returncode})")
+
+
+def rimuovi():
+    """Cancella .venv-augura: l'assistente torna a funzionare senza add-on."""
+    def sblocca(funzione, percorso, _):
+        # su Windows alcuni file dell'ambiente sono in sola lettura
+        os.chmod(percorso, stat.S_IWRITE)
+        funzione(percorso)
+    if VENV.exists():
+        shutil.rmtree(VENV, onerror=sblocca)
 
 
 def _esegui(comando, timeout=600):
@@ -65,3 +99,9 @@ def verifica(percorso):
         except Exception as e:
             out["errori"].append(f"orientations: {e}")
     return out
+
+
+if __name__ == "__main__":
+    # usato da addon_augura\installa.bat
+    for riga in installa():
+        print(riga)

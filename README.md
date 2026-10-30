@@ -69,8 +69,9 @@ Il profilo filamento si sceglie nella barra laterale. Un orientamento si seziona
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
-OpenCASCADE. Si installa a parte, in `.venv-augura` (circa 700 MB), con
-`addon_augura\installa.bat`; senza, l'assistente funziona come prima. Con l'add-on:
+OpenCASCADE. È disattivato finché non lo si installa: dalla barra laterale della dashboard
+(«Scarica e installa augura») oppure con `addon_augura\installa.bat`. Va in un ambiente a parte,
+`.venv-augura` (circa 700 MB); senza, l'assistente funziona come prima. Con l'add-on:
 
 - si possono caricare file **STEP**: vengono convertiti in STL per l'analisi e le immagini;
 - sugli STEP augura dà controlli esatti (soffitti e ponti con la loro luce, spessori,
@@ -81,7 +82,7 @@ OpenCASCADE. Si installa a parte, in `.venv-augura` (circa 700 MB), con
 
 augura non funziona senza build123d (lo importa anche per gli STL), quindi l'add-on non ha una
 versione leggera. La versione è bloccata a 0.1.8 perché il progetto è pre-alpha.
-Per toglierlo basta cancellare la cartella `.venv-augura`.
+Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella la cartella `.venv-augura`).
 
 ## Personalizzare
 

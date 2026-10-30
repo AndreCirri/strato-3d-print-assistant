@@ -70,9 +70,30 @@ with st.sidebar:
     ADDON = augura_addon.disponibile()
     if ADDON:
         st.success("augura attivo: file STEP e controlli esatti (solo sugli STEP)")
+        with st.popover("Rimuovi augura"):
+            st.caption("Cancella l'ambiente `.venv-augura` (circa 700 MB). Si potrà reinstallare da qui.")
+            if st.button("Conferma la rimozione", type="primary"):
+                try:
+                    augura_addon.rimuovi()
+                except OSError as e:
+                    st.error(f"Rimozione non riuscita: {e}")
+                else:
+                    st.rerun()
     else:
-        st.caption("augura non installato. Per file STEP e controlli esatti: "
-                   "`addon_augura\\installa.bat` (circa 700 MB), poi riavvia.")
+        st.caption("augura non installato (facoltativo). Aggiunge i file STEP e controlli esatti su di essi.")
+        if st.button(f"Scarica e installa augura {augura_addon.VERSIONE} (circa 700 MB)"):
+            with st.status("Installazione di augura: può volerci qualche minuto...", expanded=True) as stato:
+                registro = st.empty()
+                righe = []
+                try:
+                    for riga in augura_addon.installa():
+                        righe = (righe + [riga])[-15:]
+                        registro.code("\n".join(righe), language=None)
+                except Exception as e:
+                    stato.update(label=f"Installazione non riuscita: {e}", state="error")
+                else:
+                    stato.update(label="augura installato", state="complete")
+                    st.rerun()
 
 tab_analisi, tab_diario, tab_storico = st.tabs(["Analizza un pezzo", "Diario di stampa", "Analisi passate"])
 
