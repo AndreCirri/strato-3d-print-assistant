@@ -196,6 +196,8 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         o["penalita_stabilita"] = round(penalita_stabilita(o), 1)
         o["punteggio"] = round(o["supporti_dal_piatto_area_mm2"] + 3 * o["supporti_sul_pezzo_area_mm2"]
                                + 0.02 * o["volume_supporti_stimato_mm3"] + o["penalita_stabilita"], 1)
+        # Alias esplicito: dopo lo slicing esisterà anche un punteggio in grammi equivalenti.
+        o["punteggio_geometrico"] = o["punteggio"]
     out.sort(key=lambda o: o["punteggio"])
     for i, o in enumerate(out, 1):
         o["id"] = i

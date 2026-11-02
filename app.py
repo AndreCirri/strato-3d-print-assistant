@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 import augura_addon
+import classifica
 import config
 import diario
 import orienta_slicer
@@ -123,7 +124,9 @@ def tabella_confronto(dati, cartella):
                       "si ribalta": o.get("si_ribalta"), "brim": o.get("brim_consigliato"),
                       "supporti g (reali)": (o.get("slicer") or {}).get("supporti_g"),
                       "tempo (reale)": (o.get("slicer") or {}).get("tempo"),
-                      "punteggio nostro": o.get("punteggio"), "costo slicer": o.get("costo_slicer")})
+                      "punteggio reale": o.get("punteggio_reale"),
+                      "punteggio geometrico": classifica.punteggio_geometrico(o),
+                      "costo slicer": o.get("costo_slicer")})
     return pd.DataFrame(righe)
 
 
@@ -134,6 +137,15 @@ def nome_lavoro(nome_file):
 
 def salva_analisi(cartella, dati):
     (cartella / "analisi.json").write_text(json.dumps(dati, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def immagini_lavoro(cartella, dati):
+    """Griglia più viste dei primi due classificati; fallback per i lavori più vecchi."""
+    immagini = [cartella / "orientamenti.png"]
+    viste_primi = [cartella / f"viste_{o['id']}.png" for o in dati.get("orientamenti", [])[:2]]
+    esistenti = [p for p in viste_primi if p.exists()]
+    immagini += esistenti or sorted(cartella.glob("viste_*.png"))
+    return [p for p in immagini if p.exists()]
 
 
 def impronta(contenuto):
@@ -147,7 +159,8 @@ def _impronta_file(percorso, _modificato):
 
 @st.cache_data(show_spinner=False)
 def _leggi_analisi(percorso, _modificato):
-    return json.loads(Path(percorso).read_text(encoding="utf-8"))
+    dati = json.loads(Path(percorso).read_text(encoding="utf-8"))
+    return classifica.applica(dati)
 
 
 def lavori_salvati():
@@ -253,6 +266,13 @@ with tab_analisi:
             slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
                                             config.PROFILO_PROCESSO, profilo_filamento,
                                             config.SUPPORTI_SEZIONAMENTO, avanzamento)
+            classifica.applica(dati)
+            # Il vincitore reale può essere diverso da quello geometrico: riallinea
+            # griglia e viste dettagliate senza cambiare gli ID degli orientamenti.
+            griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
+            for o in dati["orientamenti"][:2]:
+                viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png",
+                      f"Orientamento {o['id']} ({o['origine']})")
             barra.empty()
             avviso.empty()
             dati["sezionamento"] = {"processo": config.PROFILO_PROCESSO, "filamento": profilo_filamento,
@@ -270,7 +290,7 @@ with tab_analisi:
 
     if "lavoro" in st.session_state:
         cartella = Path(st.session_state["lavoro"])
-        dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
+        dati = classifica.applica(json.loads((cartella / "analisi.json").read_text(encoding="utf-8")))
         st.subheader("2. Cosa dice la geometria")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Dimensioni (mm)", " × ".join(f"{x:g}" for x in dati["dimensioni_mm"]))
@@ -282,7 +302,7 @@ with tab_analisi:
             st.info(f"Il modello non è perfettamente chiuso ({dati['bordi_aperti']} bordi aperti): "
                     "di solito lo slicer lo ripara da solo, ma controlla l'anteprima.")
         def riga(o):
-            r = {k: v for k, v in o.items() if k not in ("trasformazione", "slicer")}
+            r = {k: v for k, v in o.items() if k not in ("trasformazione", "slicer", "punteggio")}
             s = o.get("slicer") or {}
             if s and "errore" not in s:
                 r.update({"filamento pezzo g": s["pezzo_g"], "filamento supporti g": s["supporti_g"],
@@ -299,14 +319,19 @@ with tab_analisi:
             if col in tabella:
                 tabella[col] = tabella[col].apply(lambda a: "; ".join(a) if isinstance(a, list) else a)
         st.dataframe(tabella.set_index("id"), width="stretch")
-        st.caption("Punteggio più basso = meno supporti da togliere. I supporti che poggiano sul pezzo pesano il triplo. "
-                   "Costo slicer: il valore che dà al candidato l'orientamento automatico dello slicer (più basso = preferito).")
+        if dati.get("classifica", {}).get("metodo") == "sezionamento_reale":
+            st.caption("Classifica reale: grammi di supporto del G-code + stima delle sporgenze non servite dal profilo "
+                       "solo dal piatto (peso triplo) + 25% del brim + penalità di stabilità. Più basso = meglio. "
+                       "Il punteggio geometrico resta visibile per confronto.")
+        else:
+            st.caption("Classifica geometrica: più basso = meno supporti da togliere. I supporti che poggiano sul pezzo "
+                       "pesano il triplo. Sarà sostituita dalla classifica reale quando ElegooSlicer è disponibile.")
         if "confronto_slicer" in dati:
             st.markdown("**Chi sceglie cosa**")
             st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
             st.caption(dati["confronto_slicer"]["nota"])
         st.image(str(cartella / "orientamenti.png"))
-        for img in sorted(cartella.glob("viste_*.png")):
+        for img in immagini_lavoro(cartella, dati)[1:]:
             st.image(str(img))
 
         if "augura" in dati:
@@ -327,7 +352,7 @@ with tab_analisi:
         if st.button("Chiedi a Claude come stamparlo", type="primary"):
             richiesta = {"scopo": scopo, "tipo": uso, "priorita": priorita, "condizioni": ambiente,
                          "filamenti_disponibili": filamenti, "multimateriale_per_supporti": multimateriale, "note": note}
-            immagini = [str(p) for p in [cartella / "orientamenti.png", *sorted(cartella.glob("viste_*.png"))]]
+            immagini = [str(p) for p in immagini_lavoro(cartella, dati)]
             with st.spinner("Claude sta guardando il pezzo (circa 1-2 minuti)..."):
                 testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello)
             if errore or not testo:

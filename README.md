@@ -66,6 +66,12 @@ I profili di sistema ereditano l'uno dall'altro (`inherits`): vengono fusi in pr
 lasciati marcati come "system", altrimenti la riga di comando li considera incompatibili (codice −17).
 Il profilo filamento si sceglie nella barra laterale. Un orientamento si seziona in circa 2 secondi.
 
+Dopo il sezionamento la classifica viene ricalcolata in **grammi equivalenti di supporto**: grammi
+reali del G-code, più una stima delle sporgenze che il profilo "solo dal piatto" lascia senza supporto
+(peso triplo), il 25% del brim e una penalità per gli orientamenti instabili. La conversione usata per
+le sole superfici non servite è 5 g ogni 1.000 mm², mediana dei lavori già sezionati. Il punteggio
+geometrico resta disponibile e viene usato come fallback se lo slicer manca o fallisce.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
@@ -106,6 +112,5 @@ programma che lo include) va distribuito con una licenza compatibile.
 
 ## Da fare
 
-- Usare i grammi reali dei supporti nel punteggio della classifica, al posto delle aree stimate.
 - Esportare il consiglio come profilo di processo da importare nello slicer.
 - Riconoscere i supporti dentro le cavità (oggi risultano "dal piatto" se la cavità è aperta in basso).

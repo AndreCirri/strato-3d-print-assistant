@@ -29,6 +29,10 @@ volte sceglie pose inclinate che toccano il piatto solo con spigoli.
 (grammi di pezzo, supporti e brim misurati nel G-code, tempo stimato dallo slicer, profilo in "sezionamento"): \
 valgono più delle stime geometriche, che non vedono per esempio i supporti che lo slicer aggiunge sotto \
 spigoli e punte. Quando stime e sezionamento non concordano, segui il sezionamento e dillo.
+- Se "classifica.metodo" è "sezionamento_reale", l'ordine degli orientamenti e "punteggio_reale" usano \
+i grammi del G-code. "supporti_sul_pezzo_stimati_g" copre invece le sporgenze che il profilo solo dal \
+piatto non serve; "punteggio_geometrico" resta come confronto. Preferisci la classifica reale, ma spiega \
+se il vincitore è diverso da quello geometrico.
 - Ribaltamento e brim sono calcolati per ogni orientamento: se consigli un orientamento con brim \
 consigliato, specifica tipo e larghezza del brim.
 - Nomina le opzioni come nell'interfaccia italiana di ElegooSlicer/OrcaSlicer; se non sei sicuro della \
