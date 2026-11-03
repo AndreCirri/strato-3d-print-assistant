@@ -83,6 +83,10 @@ propone una combinazione coerente con la priorità scelta. Sono necessari solo q
 aggiuntivi: Dettaglio e Veloce per ciascuno dei due orientamenti. Anche le analisi salvate in precedenza
 possono eseguire il confronto senza ripetere l'analisi geometrica.
 
+Per la combinazione consigliata si possono scaricare un **profilo di processo JSON** importabile in
+ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Il profilo deriva da quello abituale ed
+è esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
@@ -123,5 +127,5 @@ programma che lo include) va distribuito con una licenza compatibile.
 
 ## Da fare
 
-- Esportare il consiglio come profilo di processo da importare nello slicer.
+- Esportare un progetto 3MF completo con modello, profilo e filamento.
 - Riconoscere i supporti dentro le cavità (oggi risultano "dal piatto" se la cavità è aperta in basso).

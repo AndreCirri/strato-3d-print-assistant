@@ -171,6 +171,24 @@ def calcola_varianti(mesh, dati, cartella, filamento, priorita, avanzamento=None
     return dati["ottimizzazione_processo"]
 
 
+def nome_file_sicuro(testo):
+    """Nome leggibile e valido su Windows per i file scaricati dalla dashboard."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", testo).strip("._")
+
+
+def stl_raccomandato(cartella, raccomandazione, varianti):
+    """STL già ruotato e appoggiato sul piatto prodotto durante il sezionamento."""
+    variante = next((v for v in varianti if v["id"] == raccomandazione["variante_id"]), None)
+    if variante is None:
+        return None
+    orientamento = f"orientamento_{raccomandazione['orientamento_id']}"
+    if variante.get("riferimento"):
+        percorso = cartella / "sezionamenti" / orientamento / "pezzo.stl"
+    else:
+        percorso = cartella / "varianti" / orientamento / variante["id"] / "pezzo.stl"
+    return percorso if percorso.is_file() else None
+
+
 def impronta(contenuto):
     return hashlib.sha256(contenuto).hexdigest()
 
@@ -412,6 +430,34 @@ with tab_analisi:
             if rac:
                 st.success(f"Per «{priorita}»: orientamento {rac['orientamento_id']}, "
                            f"variante {rac['variante']}. {rac['motivo'].capitalize()}.")
+                variante = next((v for v in opt.get("varianti", [])
+                                 if v["id"] == rac["variante_id"]), None)
+                if variante:
+                    base = dati.get("sezionamento", {}).get("processo", config.PROFILO_PROCESSO)
+                    supporti = dati.get("sezionamento", {}).get("supporti", config.SUPPORTI_SEZIONAMENTO)
+                    pezzo = Path(dati.get("file", cartella.name)).stem
+                    nome_profilo = f"Assistente stampa - {pezzo} - {rac['variante']}"
+                    profilo = slicer_cli.profilo_utente(
+                        nome_profilo, base, variante["impostazioni"], supporti,
+                    )
+                    nome_base = nome_file_sicuro(f"{pezzo}_{rac['variante_id']}")
+                    c_profilo, c_stl = st.columns(2)
+                    c_profilo.download_button(
+                        "Scarica profilo ElegooSlicer",
+                        json.dumps(profilo, ensure_ascii=False, indent=2),
+                        file_name=f"{nome_base}.json",
+                        mime="application/json",
+                    )
+                    orientato = stl_raccomandato(cartella, rac, opt.get("varianti", []))
+                    if orientato:
+                        c_stl.download_button(
+                            f"Scarica STL orientamento {rac['orientamento_id']}",
+                            orientato.read_bytes(),
+                            file_name=f"{nome_base}_orientamento_{rac['orientamento_id']}.stl",
+                            mime="model/stl",
+                        )
+                    st.caption("Importa il JSON in ElegooSlicer come configurazione di processo. "
+                               "Lo STL è già ruotato e appoggiato sul piatto nell'orientamento consigliato.")
             righe_varianti = []
             for r in opt.get("risultati", []):
                 righe_varianti.append({

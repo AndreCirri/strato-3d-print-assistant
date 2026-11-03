@@ -18,6 +18,7 @@ import config
 
 ESEGUIBILE = Path(r"C:\Program Files\ElegooSlicer\elegoo-slicer.exe")
 PROFILI = Path(r"C:\Program Files\ElegooSlicer\resources\profiles\Elegoo")
+VERSIONE_PROFILO_UTENTE = "1.5.3.4"
 
 
 def disponibile():
@@ -62,6 +63,23 @@ def profilo(nome, modifiche=None):
     completo["from"] = "system"
     completo.update(modifiche or {})
     return completo
+
+
+def profilo_utente(nome, processo_base, impostazioni, supporti=None):
+    """Profilo di processo completo e importabile con le impostazioni realmente provate."""
+    nome = str(nome).strip()
+    if not nome:
+        raise ValueError("il nome del profilo non può essere vuoto")
+    modifiche = dict(supporti or {})
+    modifiche.update(impostazioni)
+    esportato = profilo(processo_base, modifiche)
+    esportato.pop("setting_id", None)
+    esportato.pop("instantiation", None)
+    esportato.update({
+        "from": "User", "is_custom_defined": "0", "name": nome,
+        "print_settings_id": nome, "version": VERSIONE_PROFILO_UTENTE,
+    })
+    return esportato
 
 
 NUMERI_GCODE = {
