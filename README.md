@@ -183,6 +183,12 @@ Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella l
 - `diario.jsonl` e `foto/`: il diario di stampa;
 - `bobine.json`: inventario personale delle bobine, escluso da Git.
 
+I database personali (`*.db`, `*.sqlite`, `*.sqlite3`), i relativi file WAL/SHM/journal, i backup nelle
+cartelle `backup/` e `backups/`, i log e le credenziali locali sono esclusi da Git. Schema SQL, migrazioni
+e generatori di dati sintetici restano versionabili. I file `.env.example`, `.env.sample` e `.env.template`
+possono essere condivisi solo con valori dimostrativi. Le regole di esclusione non rimuovono file già
+committati né dati presenti nella cronologia Git.
+
 ## Licenza
 
 Copyright (C) 2026 Andrea Cirrincione.

@@ -185,6 +185,12 @@ To remove it use "Rimuovi augura" in the sidebar (or delete the `.venv-augura` f
 - `diario.jsonl` and `foto/`: the print journal;
 - `bobine.json`: personal spool inventory, excluded from Git.
 
+Personal databases (`*.db`, `*.sqlite`, `*.sqlite3`), their WAL/SHM/journal files, snapshots in the root
+`backup/` and `backups/` directories, logs and local credentials are excluded from Git. SQL schemas,
+migrations and synthetic fixture generators remain versionable. Shared `.env.example`, `.env.sample`
+and `.env.template` files must contain placeholder values only. Ignore rules do not remove files that
+have already been committed or data stored in Git history.
+
 ## License
 
 Copyright (C) 2026 Andrea Cirrincione.
