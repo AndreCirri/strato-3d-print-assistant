@@ -13,6 +13,14 @@ def scatola(dimensioni, centro_z):
 
 
 class ClassificaFacceTest(unittest.TestCase):
+    def test_unione_preserva_una_cavita_interna_con_guscio_negativo(self):
+        esterno = scatola([10,10,10], 5)
+        interno = scatola([4,4,4], 5)
+        interno.invert()
+        m = unisci_solidi(trimesh.util.concatenate([esterno, interno]))
+        self.assertAlmostEqual(m.volume, 936)
+        self.assertFalse(m.contains([[0,0,5]])[0])
+        self.assertTrue(misure_globali(m)['unione_solidi']['misure_affidabili'])
     def test_unione_non_duplica_volume_ne_spessori_interni(self):
         base = scatola([10, 10, 2], 1)
         superiore = scatola([10, 10, 4], 3)

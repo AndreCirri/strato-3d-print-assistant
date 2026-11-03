@@ -22,6 +22,8 @@ def attendi(p):
             if stato.get('stato') != 'completata':
                 print((p/'lavorazione.log').read_text(encoding='utf-8')[-6000:], flush=True)
                 raise AssertionError(stato)
+            while lavorazioni.vivo(stato.get('pid')) and time.monotonic() < limite:
+                time.sleep(.1)
             return
         time.sleep(.5)
     raise AssertionError('Timeout worker')
@@ -44,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='assistente_integrazione_') as tmp:
     config.LAVORI = root
     try:
         app = AppTest.from_file(str(config.CARTELLA / 'app.py'), default_timeout=30)
-        app.session_state['lavoro'] = str(p)
+        app.query_params['lavoro'] = p.name
         app.run()
         assert not app.exception, [e.message for e in app.exception]
         assert len(app.tabs) == 4
@@ -103,5 +105,6 @@ with tempfile.TemporaryDirectory(prefix='assistente_integrazione_') as tmp:
     finally:
         config.LAVORI = precedente
         fine = time.monotonic() + 180
-        while lavorazioni.stato(p).get('stato') == 'in corso' and time.monotonic() < fine:
+        while (lavorazioni.stato(p).get('stato') == 'in corso'
+               or lavorazioni.vivo(lavorazioni.stato(p).get('pid'))) and time.monotonic() < fine:
             time.sleep(.5)

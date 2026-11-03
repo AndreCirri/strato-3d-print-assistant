@@ -55,8 +55,9 @@ def filamenti_disponibili():
 def profilo(nome, modifiche=None):
     """Profilo completo: la catena di 'inherits' fusa dal più generico al più specifico."""
     catena, n = [], nome
+    indice = _indice()
     while n:
-        j = _indice().get(n)
+        j = indice.get(n)
         if j is None:
             raise KeyError(f"profilo non trovato: {n}")
         catena.append(j)

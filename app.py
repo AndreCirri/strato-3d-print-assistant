@@ -442,6 +442,7 @@ with tab_analisi:
             icone = {"errore": "🔴", "avviso": "🟠", "info": "🔵"}
             tabella_controlli = pd.DataFrame([{
                 "livello": icone[r["gravita"]], "controllo": r["controllo"],
+                "orientamento": r.get('orientamento_id'),
                 "problema": r["messaggio"], "cosa fare": r["azione"],
             } for r in controlli_stampa["controlli"]])
             st.dataframe(tabella_controlli, width="stretch", hide_index=True)
@@ -450,6 +451,27 @@ with tab_analisi:
         with st.expander("Limiti dei controlli automatici"):
             for limite_controllo in controlli_stampa["limiti"]:
                 st.caption(limite_controllo)
+        if st.button('Esegui i controlli dettagliati su sezioni e toolpath'):
+            lavorazioni.avvia(cartella, 'controlli')
+            st.rerun()
+        dettaglio = dati.get('controlli_dettagliati')
+        if dettaglio:
+            st.caption(f"Ultimi controlli dettagliati: orientamento {dettaglio['orientamento_id']}, variante {dettaglio['variante']}.")
+            with st.expander('Dettagli di cavità, ponti, fori e percorsi'):
+                geometria = dettaglio.get('geometria') or {}
+                percorso = dettaglio.get('toolpath') or {}
+                st.caption(geometria.get('limite', geometria.get('motivo', '')))
+                st.caption(percorso.get('limite', 'G-code non disponibile: controlli solo geometrici.'))
+                for nome in ('cavita_chiuse', 'ponti', 'fori_piccoli', 'isole_geometriche'):
+                    if geometria.get(nome):
+                        st.write(nome.replace('_', ' '))
+                        st.dataframe(pd.DataFrame(geometria[nome]), hide_index=True)
+                for nome in ('collisioni', 'isole_senza_appoggio', 'percorsi_disconnessi'):
+                    if percorso.get(nome):
+                        st.write(nome.replace('_', ' '))
+                        st.dataframe(pd.DataFrame(percorso[nome]), hide_index=True)
+                if percorso.get('limitato') or percorso.get('archi_non_analizzati'):
+                    st.warning('Analisi del toolpath parziale: raggiunto il limite di segmenti o presenti archi non supportati.')
         profilo_usato = dati.get("sezionamento", {}).get("filamento", "")
         materiale_storico = calibrazione.materiale_da_profilo(profilo_usato, config.FILAMENTI)
         storico_personale = calibrazione.analizza(diario.tutte(), materiale_storico, profilo=profilo_usato) \

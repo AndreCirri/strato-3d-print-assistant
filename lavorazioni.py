@@ -94,6 +94,7 @@ def esegui(cartella, modo):
     import confronto
     import render
     import slicer_cli
+    import diagnostica
     cartella = Path(cartella)
     def progresso(fase):
         salva_json(cartella / "lavorazione.json", {"stato": "in corso", "pid": os.getpid(),
@@ -106,7 +107,7 @@ def esegui(cartella, modo):
             progresso("Esportazione 3MF")
             slicer_cli.esporta_3mf(cartella / spec["stl"], cartella / spec["destinazione"],
                                   spec["processo"], spec["filamento"], spec["modifiche"])
-            salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo})
+            salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo, 'pid': os.getpid()})
             return
         if (cartella / "analisi.json").exists():
             dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
@@ -147,6 +148,10 @@ def esegui(cartella, modo):
             confronto.calcola(mesh, dati, cartella, richiesta,
                               lambda i, o, v, n: progresso(f"{v['nome']}, orientamento {o['id']} ({i+1}/{n})"))
             salva_json(cartella / "analisi.json", dati)
+        if modo in ('completa', 'varianti', 'controlli'):
+            progresso('Controlli di cavità, sezioni e toolpath')
+            diagnostica.calcola(cartella, dati, mesh)
+            salva_json(cartella / 'analisi.json', dati)
         if modo in ("completa", "immagini"):
             progresso("Creazione immagini")
             render.griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
@@ -163,10 +168,10 @@ def esegui(cartella, modo):
                     progresso("Controlli STEP")
                     dati["augura"] = augura_addon.verifica(cartella / ingresso["file"])
                     salva_json(cartella / "analisi.json", dati)
-        salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo})
+        salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo, 'pid': os.getpid()})
     except Exception as errore:
         traceback.print_exc()
-        salva_json(cartella / "lavorazione.json", {"stato": "errore", "modo": modo, "errore": str(errore)})
+        salva_json(cartella / "lavorazione.json", {"stato": "errore", "modo": modo, 'pid': os.getpid(), "errore": str(errore)})
     finally:
         (cartella / "lavorazione.lock").unlink(missing_ok=True)
 

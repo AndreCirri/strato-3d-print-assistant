@@ -116,6 +116,13 @@ carichi di rottura, né la distribuzione reale delle tensioni dovuta ai vincoli 
 I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problemi della mesh, pareti sotto
 due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di
 supporti. I rischi di collisione o supporti intrappolati restano esplicitamente da confermare nell'anteprima.
+I **controlli dettagliati** sezionano la mesh per cercare cavità chiuse, accessi insufficienti per un
+utensile da 2 mm, piccoli fori/canali, ponti con luce e direzione e isole. Il G-code viene analizzato per
+individuare percorsi separati, nuovi inizi senza appoggio e viaggi sotto materiale già depositato;
+i campioni di supporto vengono confrontati con le cavità dopo un allineamento stimato. Il rapporto
+riporta passo delle sezioni e griglia del percorso, eventuale limite di segmenti o archi non analizzati.
+Il controllo campionato può perdere dettagli più piccoli della risoluzione e non simula la testina
+completa o le deformazioni della stampa. Le regioni disconnesse possono essere intenzionali.
 I solidi sovrapposti nello stesso STL vengono trattati come materiale continuo, come fa lo slicer, e le
 loro superfici interne non vengono conteggiate come sporgenze da sostenere.
 Prima delle misure viene eseguita un'unione volumetrica con manifold3d: anche volume, superficie e

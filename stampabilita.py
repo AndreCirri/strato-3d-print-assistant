@@ -79,6 +79,31 @@ def valuta(dati, volume_stampa=(256, 256, 256), ugello_mm=0.4):
                       "Mantieni il brim nel profilo esportato e controlla il primo strato.", oid)
 
     risultati.sort(key=lambda r: (ORDINE_GRAVITA[r["gravita"]], r["controllo"]))
+    dettaglio = dati.get('controlli_dettagliati') or {}
+    geometria = dettaglio.get('geometria') or {}
+    percorso = dettaglio.get('toolpath') or {}
+    oid = dettaglio.get('orientamento_id')
+    isole = list(percorso.get('isole_senza_appoggio', []))
+    if not percorso or percorso.get('limitato') or percorso.get('archi_non_analizzati'):
+        isole += geometria.get('isole_geometriche', [])
+    verifiche = [
+        (geometria.get('cavita_chiuse'), 'cavita_chiuse', 'Cavità chiuse', 'Zone libere senza collegamento all’esterno nelle sezioni.', 'Valuta di aprire o dividere il modello.'),
+        (geometria.get('zone_inaccessibili_utensile_2mm'), 'accesso', 'Accesso ai supporti', 'Zone non raggiungibili da un utensile di diametro 2 mm.', 'Controlla la possibilità di estrarre i supporti.'),
+        (geometria.get('campioni_supporto_in_cavita_chiuse'), 'supporti_interni', 'Supporti in cavità chiuse', 'Campioni di supporto del G-code ricadono in cavità chiuse dopo allineamento stimato.', 'Conferma la posizione nel toolpath e valuta di dividere il modello.'),
+        (geometria.get('fori_piccoli'), 'fori', 'Fori e canali piccoli', 'Sezioni di fori/canali più strette di quattro diametri ugello.', 'Verifica la quota e calibra la compensazione dei fori.'),
+        (geometria.get('ponti'), 'ponti', 'Ponti', 'Rilevate superfici con appoggi sui due lati; luce e direzione sono nella tabella dettagliata.', 'Orienta le linee di ponte lungo la luce supportata e verifica il raffreddamento.'),
+        (isole, 'isole', 'Isole senza appoggio', 'Nuove regioni senza appoggio rilevato alla risoluzione del controllo.', 'Verifica supporti o dividi il modello.'),
+        (percorso.get('collisioni'), 'collisioni', 'Attraversamenti del materiale', 'Spostamenti dell’ugello sotto la quota di materiale già depositato.', 'Controlla Z-hop e traiettorie di viaggio.'),
+    ]
+    for presente, codice, nome, messaggio, azione in verifiche:
+        if presente:
+            quantita = len(presente) if isinstance(presente, list) else presente
+            _aggiungi(risultati, codice, 'avviso', nome, f'{messaggio} Rilevamenti: {quantita}.', azione, oid)
+    if percorso.get('percorsi_disconnessi'):
+        _aggiungi(risultati, 'percorsi', 'info', 'Percorsi separati',
+                  'Il G-code contiene regioni disconnesse nello stesso strato; possono essere intenzionali.',
+                  'Verifica che corrispondano a parti previste.', oid)
+    risultati.sort(key=lambda r: (ORDINE_GRAVITA[r['gravita']], r['controllo']))
     return {
         "orientamento_valutato": orientamenti[0].get("id") if orientamenti else None,
         "controlli": risultati,

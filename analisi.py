@@ -35,9 +35,20 @@ def unisci_solidi(mesh):
     nota = {'corpi_originali': len(corpi), 'applicata': False,
             'misure_affidabili': bool(mesh.is_volume)}
     if len(corpi) > 1:
-        if all(c.is_volume for c in corpi):
+        if all(c.is_watertight for c in corpi):
             try:
-                unione = trimesh.boolean.union(corpi, engine='manifold')
+                positivi = [c for c in corpi if c.volume > 0]
+                negativi = [c.copy() for c in corpi if c.volume < 0]
+                if not positivi:
+                    raise ValueError('Nessun volume positivo')
+                unione = trimesh.boolean.union(positivi, engine='manifold')
+                if negativi:
+                    for c in negativi: c.invert()
+                    vuoti = trimesh.boolean.union(negativi, engine='manifold')
+                    interno = trimesh.boolean.intersection([unione, vuoti], engine='manifold')
+                    if abs(interno.volume - vuoti.volume) > max(1e-4, abs(vuoti.volume) * 1e-5):
+                        raise ValueError('Gusci negativi non interni al volume positivo')
+                    unione = trimesh.boolean.difference([unione, vuoti], engine='manifold')
                 if unione is None or not unione.is_volume:
                     raise ValueError('Unione non volumetrica')
                 nota.update(applicata=True, misure_affidabili=True,
