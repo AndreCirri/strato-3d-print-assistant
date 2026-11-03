@@ -36,13 +36,14 @@ for d in (config.LAVORI, config.FOTO):
 CAMPI_RICHIESTA = {"scopo": "scopo", "tipo": "uso", "priorita": "priorita", "condizioni": "ambiente",
                    "filamenti_disponibili": "filamenti", "multimateriale_per_supporti": "multimateriale",
                    "note": "note", "sollecitazione": "sollecitazione", "direzione_carico": "direzione_carico",
-                   "parte_critica": "parte_critica", "profilo_filamento": "profilo_filamento"}
+                   "parte_critica": "parte_critica", "profilo_filamento": "profilo_filamento",
+                   "budget_ricerca": "budget_ricerca"}
 FORMATI_MODELLO = {".stl", ".3mf", ".obj", ".step", ".stp"}
 DEFAULT_RICHIESTA = {
     "scopo": "", "tipo": "funzionale / meccanico", "priorita": "robustezza e rigidità",
     "condizioni": [], "filamenti_disponibili": ["PLA", "PETG"], "multimateriale_per_supporti": False,
     "note": "", "sollecitazione": "non specificata", "direzione_carico": "non specificata",
-    "parte_critica": "nessuna indicata", "profilo_filamento": config.PROFILO_FILAMENTO}
+    "parte_critica": "nessuna indicata", "profilo_filamento": config.PROFILO_FILAMENTO, "budget_ricerca": 4}
 
 
 def apri_lavoro(cartella):
@@ -288,6 +289,11 @@ with tab_analisi:
     st.caption("Indica la direzione della trazione/compressione nella zona critica. Per la flessione serve "
                "l'asse delle tensioni longitudinali, non la direzione della forza applicata. "
                "L'euristica non valuta torsione e urti.")
+    with st.expander('Ricerca dei parametri'):
+        st.session_state.setdefault('budget_ricerca', 4)
+        st.number_input('Prove aggiuntive oltre i preset', min_value=0, max_value=8, key='budget_ricerca')
+        st.caption('La ricerca modifica un parametro alla volta attorno alle configurazioni migliori. '
+                   'Il compromesso pesa tempo, materiale, layer e robustezza attesa al 25% ciascuno.')
 
     analizza_ora = False
     if file:

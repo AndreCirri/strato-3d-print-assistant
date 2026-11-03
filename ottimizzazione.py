@@ -1,5 +1,6 @@
 """Confronto tra varianti di processo sui migliori orientamenti."""
 from validazione import numero as _numero, riga_valida
+PESI_COMPROMESSO = {"tempo": .25, "materiale": .25, "layer": .25, "robustezza": .25}
 
 
 def _materiale_g(risultato):
@@ -82,7 +83,7 @@ def alternative(righe):
             punteggi.append((valori[k] - minimo) / (massimo - minimo) if massimo > minimo else 0)
         minimo, massimo = estremi["robustezza"]
         punteggi.append((massimo - valori["robustezza"]) / (massimo - minimo) if massimo > minimo else 0)
-        return sum(punteggi) / len(punteggi)
+        return sum(p * PESI_COMPROMESSO[k] for p, k in zip(punteggi, PESI_COMPROMESSO))
     bilanciata = min(valide, key=lambda r: (compromesso(r), r["posizione_orientamento"]))
 
     return [
@@ -107,14 +108,10 @@ def scegli(righe, priorita):
         scelta = min(valide, key=lambda r: (r["materiale_g"], r["tempo_s"], r["posizione_orientamento"]))
         motivo = "è la combinazione che usa meno materiale depositato"
     elif any(x in p for x in ("robustezza", "rigidità")):
-        preferite = [r for r in valide if r["variante_id"] == "meccanico"] or \
-                    [r for r in valide if r["variante_id"] == "robusto"] or \
-                    [r for r in valide if r["variante_id"] == "dettaglio"] or valide
-        scelta = min(preferite, key=lambda r: (r["posizione_orientamento"], r["tempo_s"]))
+        scelta = min(valide, key=lambda r: (-_indicatori(r)['robustezza'], r['posizione_orientamento'], r['tempo_s']))
         motivo = "la priorità richiede più pareti e più riempimento"
     elif any(x in p for x in ("superficie", "precisione")):
-        preferite = [r for r in valide if r["variante_id"] == "dettaglio"] or valide
-        scelta = min(preferite, key=lambda r: (r["posizione_orientamento"], r["tempo_s"]))
+        scelta = min(valide, key=lambda r: (float(r['layer_height']), r['posizione_orientamento'], r['tempo_s']))
         motivo = "la priorità richiede strati fini, tre pareti e più riempimento"
     else:
         preferite = [r for r in valide if r["variante_id"] == "bilanciato"] or valide
@@ -177,6 +174,10 @@ def costruisci(orientamenti, varianti, risultati_extra, priorita, massimo_orient
         "varianti": varianti,
         "risultati": righe,
         "frontiera_pareto": pareto,
+        "criteri": {"pesi_compromesso": PESI_COMPROMESSO,
+                    "robustezza": "10 × pareti + riempimento %; indicatore euristico, non resistenza misurata",
+                    "superficie": "Altezza layer minore; indicatore euristico",
+                    "normalizzazione": "Min-max sui candidati validi; pesi uguali del 25%"},
         "alternative": alternative(righe),
         "raccomandazione": scegli(righe, priorita),
     }

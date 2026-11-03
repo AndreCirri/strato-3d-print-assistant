@@ -85,7 +85,9 @@ with tempfile.TemporaryDirectory(prefix='assistente_integrazione_') as tmp:
         attendi(p)
         dati = json.loads((p / 'analisi.json').read_text(encoding='utf-8'))
         rac = dati['ottimizzazione_processo']['raccomandazione']
-        assert rac['variante_id'] == 'meccanico'
+        scelta = next(r for r in dati['ottimizzazione_processo']['risultati']
+                      if r['orientamento_id'] == rac['orientamento_id'] and r['variante_id'] == rac['variante_id'])
+        assert int(scelta['wall_loops']) >= 5
         app2.run()
         assert not app2.exception
         next(b for b in app2.button if b.label == 'Prepara progetto 3MF').click().run()

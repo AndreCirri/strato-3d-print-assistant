@@ -21,7 +21,7 @@ Ogni fix deve avere verifica mirata e descrizione. Dopo G01, i fix sono raccolti
 
 ## Funzionalità ancora parziali
 
-- [ ] O01 — Ricerca progressiva dei parametri oltre i cinque preset fissi; esplicitare pesi e indicatori della frontiera Pareto.
+- [x] O01 — Ricerca locale progressiva oltre i preset, con budget 0–8 prove, una modifica per candidato, esclusione delle coppie già provate e checkpoint intermedi. Limiti: layer 0,12–0,28, pareti 2–5, infill 5–35%. Pesi del compromesso espliciti al 25%; l'esplorazione è locale e non garantisce l'ottimo globale.
 - [ ] M02 — Raccogliere fissaggi e zona caricata; rivedere le euristiche per flessione e torsione e i suggerimenti sulle pareti.
 - [ ] S01 — Implementare veri controlli di cavità/supporti intrappolati, ponti, fori, isole e collisioni del toolpath.
 - [x] D02 — Tendenze filtrate per materiale e profilo; mediane dei parametri solo su stampe riuscite senza problemi. Le correzioni sono esplicitamente predefinite; i vecchi record senza profilo restano nel gruppo non annotato.

@@ -84,6 +84,11 @@ La dashboard mostra tempo, materiale, supporti e variazioni percentuali rispetto
 propone una combinazione coerente con la priorità scelta e mostra la frontiera Pareto. Tempo e materiale
 sono misurati; superficie e robustezza sono indicatori dichiarati basati su layer, pareti e riempimento.
 Le analisi precedenti possono aggiungere Economico e Robusto riusando i sezionamenti già presenti.
+La **ricerca progressiva** aggiunge fino a otto prove (quattro per impostazione iniziale), variando un
+parametro per volta attorno ai candidati migliori. Layer, pareti e infill restano entro limiti definiti;
+le coppie orientamento/impostazioni già provate vengono escluse. I risultati intermedi sono riprendibili.
+Il compromesso normalizza tempo, materiale, layer e indicatore di robustezza con pesi del 25% ciascuno.
+Si tratta di una ricerca locale: il budget non assicura di aver trovato l'ottimo globale.
 
 Analisi, confronto, immagini e 3MF vengono elaborati da un processo separato: puoi navigare tra le schede
 e premere **Aggiorna avanzamento** per leggere lo stato. Se un processo si interrompe, **Riprendi la
