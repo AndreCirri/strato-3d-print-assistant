@@ -105,6 +105,10 @@ Per la combinazione consigliata si possono scaricare un **profilo di processo JS
 ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Un terzo pulsante genera con ElegooSlicer
 un **progetto 3MF** che contiene modello e configurazioni. Il profilo deriva da quello abituale ed è
 esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
+Il menu **Configurazione da esportare** permette di scegliere qualsiasi combinazione misurata valida,
+con quella consigliata inizialmente selezionata. JSON, STL, 3MF e verifica bobina seguono la scelta manuale.
+Lo STL contiene soltanto geometria e orientamento: a parità di orientamento non cambia tra varianti.
+Per conservare anche layer, pareti, riempimento e filamento usa il progetto 3MF.
 
 Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la componente che agisce
 normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,

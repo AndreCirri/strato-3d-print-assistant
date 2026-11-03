@@ -555,33 +555,63 @@ with tab_analisi:
             if rac:
                 st.success(f"Per «{priorita}»: orientamento {rac['orientamento_id']}, "
                            f"variante {rac['variante']}. {rac['motivo'].capitalize()}.")
+                configurazioni = {(r['orientamento_id'], r['variante_id']): r
+                                  for r in opt.get('risultati', []) if riga_valida(r)}
+                consigliata = (rac['orientamento_id'], rac['variante_id'])
+                chiave_export = f"esportazione_scelta_{cartella}_{opt.get('firma', '')}"
+                precedente = st.session_state.get(chiave_export, consigliata)
+                if precedente not in configurazioni:
+                    precedente = consigliata
+                def descrivi_export(chiave):
+                    r = configurazioni[chiave]
+                    nome = r['variante'].replace('sparse_infill_density', 'riempimento').replace('wall_loops', 'pareti').replace('layer_height', 'layer')
+                    suffisso = ' — consigliata' if chiave == consigliata else ''
+                    return (f"Orientamento {r['orientamento_id']} · {nome} · layer {r['layer_height']} mm · "
+                            f"{r['wall_loops']} pareti · riempimento {r['sparse_infill_density']}{suffisso}")
+                chiavi_export = list(configurazioni)
+                scelta_export = st.selectbox('Configurazione da esportare', chiavi_export,
+                    index=chiavi_export.index(precedente), format_func=descrivi_export,
+                    key='widget_' + chiave_export)
+                # La scelta deve sopravvivere anche quando il widget scompare durante il lavoro 3MF.
+                st.session_state[chiave_export] = scelta_export
+                esportazione = configurazioni[scelta_export]
+                st.caption(f"Esportazione selezionata: layer {esportazione['layer_height']} mm, "
+                           f"{esportazione['wall_loops']} pareti, riempimento {esportazione['sparse_infill_density']}. "
+                           f"Tempo stimato {esportazione.get('tempo', 'n.d.')}.")
+                if meccanica and priorita == 'robustezza e rigidità' and (
+                    esportazione['orientamento_id'] != meccanica['orientamento_consigliato']
+                    or int(esportazione['wall_loops']) < meccanica['pareti_consigliate']):
+                    st.warning('La scelta manuale non rispetta orientamento o pareti suggeriti dal carico dichiarato. '
+                               'La raccomandazione meccanica rimane quella indicata sopra.')
                 variante = next((v for v in opt.get("varianti", [])
-                                 if v["id"] == rac["variante_id"]), None)
+                                 if v["id"] == esportazione["variante_id"]), None)
                 if variante:
                     base = dati.get("sezionamento", {}).get("processo", config.PROFILO_PROCESSO)
                     supporti = dati.get("sezionamento", {}).get("supporti", config.SUPPORTI_SEZIONAMENTO)
                     pezzo = Path(dati.get("file", cartella.name)).stem
-                    nome_profilo = f"Assistente stampa - {pezzo} - {rac['variante']}"
+                    nome_profilo = f"Assistente stampa - {pezzo} - {esportazione['variante']}"
                     profilo = slicer_cli.profilo_utente(
                         nome_profilo, base, variante["impostazioni"], supporti,
                     )
-                    nome_base = nome_file_sicuro(f"{pezzo}_{rac['variante_id']}")
+                    nome_base = nome_file_sicuro(f"{pezzo}_{esportazione['variante_id']}")
                     c_profilo, c_stl, c_3mf = st.columns(3)
                     c_profilo.download_button(
                         "Scarica profilo ElegooSlicer",
                         json.dumps(profilo, ensure_ascii=False, indent=2),
                         file_name=f"{nome_base}.json",
                         mime="application/json",
+                        help='Scarica le impostazioni del processo selezionato: layer, pareti, riempimento e supporti. Non contiene il modello.',
                     )
-                    orientato = stl_raccomandato(cartella, rac, opt.get("varianti", []))
+                    orientato = stl_raccomandato(cartella, esportazione, opt.get("varianti", []))
                     if orientato:
                         c_stl.download_button(
-                            f"Scarica STL orientamento {rac['orientamento_id']}",
+                            f"Scarica STL orientamento {esportazione['orientamento_id']}",
                             orientato.read_bytes(),
-                            file_name=f"{nome_base}_orientamento_{rac['orientamento_id']}.stl",
+                            file_name=f"{nome_file_sicuro(pezzo)}_orientamento_{esportazione['orientamento_id']}.stl",
                             mime="model/stl",
+                            help='Contiene solo la geometria ruotata. Per lo stesso orientamento è uguale in tutte le varianti; non include impostazioni di stampa.',
                         )
-                        nome_3mf = f"{nome_base}_orientamento_{rac['orientamento_id']}.3mf"
+                        nome_3mf = f"{nome_base}_orientamento_{esportazione['orientamento_id']}.3mf"
                         progetto_3mf = cartella / "esportazioni" / nome_3mf
                         modifiche = {**supporti, **variante["impostazioni"]}
                         filamento_3mf = dati.get("sezionamento", {}).get("filamento", config.PROFILO_FILAMENTO)
@@ -591,19 +621,17 @@ with tab_analisi:
                                 file_name=nome_3mf,
                                 mime="application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
                             )
-                        elif c_3mf.button("Prepara progetto 3MF"):
+                        elif c_3mf.button("Prepara progetto 3MF",
+                            help='ElegooSlicer genera il progetto con modello orientato, processo selezionato, stampante e filamento. Al termine compare il download.'):
                             salva_json(cartella / "esportazione.json", {
                                 "stl": str(orientato.relative_to(cartella)),
                                 "destinazione": str(progetto_3mf.relative_to(cartella)),
                                 "processo": base, "filamento": filamento_3mf, "modifiche": modifiche})
                             lavorazioni.avvia(cartella, "3mf")
                             st.rerun()
-                    st.caption("Importa il JSON in ElegooSlicer come configurazione di processo. "
-                               "STL e 3MF sono già ruotati e appoggiati sul piatto nell'orientamento consigliato.")
-                    riga_scelta = next((r for r in opt.get("risultati", [])
-                                        if r["orientamento_id"] == rac["orientamento_id"]
-                                        and r["variante_id"] == rac["variante_id"]), None)
-                    materiale_g = (riga_scelta or {}).get("consumo_totale_g")
+                    st.caption("JSON: solo impostazioni. STL: solo geometria orientata, uguale tra varianti sullo stesso orientamento. "
+                               "3MF: modello e impostazioni della configurazione selezionata, da aprire in ElegooSlicer.")
+                    materiale_g = esportazione.get("consumo_totale_g")
                     filamento_scelto = dati.get("sezionamento", {}).get("filamento", "")
                     materiale_bobina = calibrazione.materiale_da_profilo(filamento_scelto, config.FILAMENTI)
                     if isinstance(materiale_g, (int, float)):
