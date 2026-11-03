@@ -87,6 +87,10 @@ Per la combinazione consigliata si possono scaricare un **profilo di processo JS
 ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Il profilo deriva da quello abituale ed
 è esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
 
+Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la componente che agisce
+normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,
+con un primo suggerimento sul numero di pareti; non è una simulazione FEM e non stima il carico di rottura.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e

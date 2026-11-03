@@ -17,6 +17,7 @@ import config
 import diario
 import ottimizzazione
 import orienta_slicer
+import resistenza
 import slicer_cli
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 
@@ -27,7 +28,8 @@ for d in (config.LAVORI, config.FOTO):
 # campi del modulo "Il pezzo e cosa ti serve": salvati in richiesta.json e ripristinati alla riapertura
 CAMPI_RICHIESTA = {"scopo": "scopo", "tipo": "uso", "priorita": "priorita", "condizioni": "ambiente",
                    "filamenti_disponibili": "filamenti", "multimateriale_per_supporti": "multimateriale",
-                   "note": "note"}
+                   "note": "note", "sollecitazione": "sollecitazione", "direzione_carico": "direzione_carico",
+                   "parte_critica": "parte_critica"}
 FORMATI_MODELLO = {".stl", ".3mf", ".obj", ".step", ".stp"}
 
 
@@ -255,6 +257,25 @@ with tab_analisi:
                                      key="multimateriale")
         note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)", key="note")
 
+    with st.expander("Carichi e resistenza degli strati"):
+        m1, m2, m3 = st.columns(3)
+        sollecitazione = m1.selectbox(
+            "Sollecitazione principale",
+            ["non specificata", "trazione", "compressione", "flessione", "torsione", "urti ripetuti"],
+            key="sollecitazione",
+        )
+        direzione_carico = m2.selectbox(
+            "Direzione rispetto al file",
+            ["non specificata", *resistenza.DIREZIONI],
+            key="direzione_carico",
+        )
+        parte_critica = m3.selectbox(
+            "Parte più critica",
+            ["nessuna indicata", "perno", "linguetta flessibile", "gancio", "foro/fissaggio", "parete sottile"],
+            key="parte_critica",
+        )
+        st.caption("Serve a confrontare la direzione degli strati; non sostituisce una simulazione strutturale.")
+
     analizza_ora = False
     if file:
         sha = impronta(file.getvalue())
@@ -384,6 +405,23 @@ with tab_analisi:
             st.markdown("**Chi sceglie cosa**")
             st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
             st.caption(dati["confronto_slicer"]["nota"])
+        meccanica = resistenza.valuta(
+            dati["orientamenti"], direzione_carico, sollecitazione, parte_critica, dati.get("spessori"),
+        )
+        if meccanica:
+            dati["analisi_meccanica"] = meccanica
+            st.markdown("**Resistenza rispetto agli strati**")
+            preferito = meccanica["orientamento_consigliato"]
+            st.info(f"Per il carico dichiarato, l'orientamento {preferito} riduce maggiormente la componente "
+                    f"che tende a separare gli strati. Indicazione iniziale: {meccanica['pareti_consigliate']} pareti.")
+            st.dataframe(pd.DataFrame(meccanica["risultati"])[[
+                "orientamento_id", "carico_tra_strati_pct", "rischio_delaminazione"
+            ]], width="stretch", hide_index=True)
+            for avviso_meccanico in meccanica["avvisi"]:
+                st.warning(avviso_meccanico)
+            st.caption(meccanica["limite"])
+        else:
+            dati.pop("analisi_meccanica", None)
         st.image(str(cartella / "orientamenti.png"))
         for img in immagini_lavoro(cartella, dati)[1:]:
             st.image(str(img))
@@ -479,6 +517,8 @@ with tab_analisi:
         if st.button("Chiedi a Claude come stamparlo", type="primary"):
             richiesta = {"scopo": scopo, "tipo": uso, "priorita": priorita, "condizioni": ambiente,
                          "filamenti_disponibili": filamenti, "multimateriale_per_supporti": multimateriale, "note": note}
+            richiesta.update({"sollecitazione": sollecitazione, "direzione_carico": direzione_carico,
+                              "parte_critica": parte_critica})
             immagini = [str(p) for p in immagini_lavoro(cartella, dati)]
             with st.spinner("Claude sta guardando il pezzo (circa 1-2 minuti)..."):
                 testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello)
