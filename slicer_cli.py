@@ -175,3 +175,37 @@ def seziona_orientamenti(mesh, orientamenti, cartella, processo, filamento, modi
         risultati[o["id"]] = r
         o["slicer"] = r
     return risultati
+
+
+def seziona_varianti(mesh, orientamenti, cartella, processo, filamento, varianti, avanzamento=None):
+    """Seziona le varianti non di riferimento per gli orientamenti ricevuti.
+
+    La variante di riferimento è già presente in ``orientamento['slicer']`` e viene saltata.
+    Ritorna record JSON-serializzabili con orientamento, variante e risultato.
+    """
+    macchina = profilo(config.PROFILO_STAMPANTE)
+    fil = profilo(filamento)
+    processo_base = profilo(processo)
+    cartella = Path(cartella)
+    da_eseguire = [(o, v) for o in orientamenti for v in varianti if not v.get("riferimento")]
+    risultati = []
+    for indice, (o, variante) in enumerate(da_eseguire):
+        if avanzamento:
+            avanzamento(indice, o, variante, len(da_eseguire))
+        sotto = cartella / f"orientamento_{o['id']}" / variante["id"]
+        sotto.mkdir(parents=True, exist_ok=True)
+        m = mesh.copy()
+        m.apply_transform(o["trasformazione"])
+        m.apply_translation(-m.bounds[0])
+        stl = sotto / "pezzo.stl"
+        m.export(stl)
+        proc = dict(processo_base)
+        proc.update(config.SUPPORTI_SEZIONAMENTO)
+        proc.update(variante["impostazioni"])
+        try:
+            r = seziona(stl, macchina, proc, fil, sotto)
+            r.pop("gcode", None)
+        except Exception as e:
+            r = {"errore": str(e)[:300]}
+        risultati.append({"orientamento_id": o["id"], "variante_id": variante["id"], "risultato": r})
+    return risultati

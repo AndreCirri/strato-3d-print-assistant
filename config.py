@@ -25,6 +25,31 @@ SOGLIA_SUPPORTI = 30
 SUPPORTI_SEZIONAMENTO = {"enable_support": "1", "support_type": "tree(auto)",
                          "support_threshold_angle": str(SOGLIA_SUPPORTI), "support_on_build_plate_only": "1"}
 
+# Dopo la classifica degli orientamenti, i primi due vengono confrontati con queste varianti.
+# "Bilanciato" riusa il sezionamento già eseguito con PROFILO_PROCESSO; non viene lanciato di nuovo.
+NUM_ORIENTAMENTI_VARIANTI = 2
+VARIANTI_PROCESSO = [
+    {
+        "id": "dettaglio",
+        "nome": "Dettaglio",
+        "descrizione": "strati più fini, tre pareti e più riempimento",
+        "impostazioni": {"layer_height": "0.12", "wall_loops": "3", "sparse_infill_density": "20%"},
+    },
+    {
+        "id": "bilanciato",
+        "nome": "Bilanciato",
+        "descrizione": "profilo abituale usato come riferimento",
+        "impostazioni": {"layer_height": "0.16", "wall_loops": "2", "sparse_infill_density": "15%"},
+        "riferimento": True,
+    },
+    {
+        "id": "veloce",
+        "nome": "Veloce",
+        "descrizione": "strati più alti e meno riempimento per ridurre tempo e materiale",
+        "impostazioni": {"layer_height": "0.24", "wall_loops": "2", "sparse_infill_density": "10%"},
+    },
+]
+
 UGELLO_MM = 0.4
 VOLUME_STAMPA = (256, 256, 256)      # mm, Centauri Carbon: usato dall'add-on augura
 

@@ -33,6 +33,9 @@ spigoli e punte. Quando stime e sezionamento non concordano, segui il sezionamen
 i grammi del G-code. "supporti_sul_pezzo_stimati_g" copre invece le sporgenze che il profilo solo dal \
 piatto non serve; "punteggio_geometrico" resta come confronto. Preferisci la classifica reale, ma spiega \
 se il vincitore è diverso da quello geometrico.
+- Se è presente "ottimizzazione_processo", confronta i risultati reali di Dettaglio, Bilanciato e Veloce. \
+La "raccomandazione" segue la priorità dichiarata dall'utente: usala come punto di partenza, cita tempo e \
+materiale misurati e segnalalo chiaramente se per ragioni tecniche proponi una combinazione diversa.
 - Ribaltamento e brim sono calcolati per ogni orientamento: se consigli un orientamento con brim \
 consigliato, specifica tipo e larghezza del brim.
 - Nomina le opzioni come nell'interfaccia italiana di ElegooSlicer/OrcaSlicer; se non sei sicuro della \

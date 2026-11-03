@@ -15,6 +15,7 @@ import augura_addon
 import classifica
 import config
 import diario
+import ottimizzazione
 import orienta_slicer
 import slicer_cli
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
@@ -148,6 +149,28 @@ def immagini_lavoro(cartella, dati):
     return [p for p in immagini if p.exists()]
 
 
+def percorso_modello_lavoro(cartella, dati):
+    """Trova la mesh anche se il progetto è stato spostato dopo aver salvato l'analisi."""
+    salvato = Path(dati.get("file", ""))
+    candidati = [salvato, cartella / salvato.name]
+    candidati += sorted(p for p in cartella.iterdir() if p.suffix.lower() in {".stl", ".3mf", ".obj"})
+    return next((p for p in candidati if p.is_file()), None)
+
+
+def calcola_varianti(mesh, dati, cartella, filamento, priorita, avanzamento=None):
+    """Seziona Dettaglio e Veloce sui primi orientamenti; Bilanciato riusa i dati esistenti."""
+    selezionati = dati["orientamenti"][:config.NUM_ORIENTAMENTI_VARIANTI]
+    extra = slicer_cli.seziona_varianti(
+        mesh, selezionati, cartella / "varianti", config.PROFILO_PROCESSO, filamento,
+        config.VARIANTI_PROCESSO, avanzamento,
+    )
+    dati["ottimizzazione_processo"] = ottimizzazione.costruisci(
+        dati["orientamenti"], config.VARIANTI_PROCESSO, extra, priorita,
+        config.NUM_ORIENTAMENTI_VARIANTI,
+    )
+    return dati["ottimizzazione_processo"]
+
+
 def impronta(contenuto):
     return hashlib.sha256(contenuto).hexdigest()
 
@@ -256,17 +279,30 @@ with tab_analisi:
         apri_lavoro(cartella)
         if SLICER:
             # ogni interazione con la pagina fa ripartire lo script e butta via il lavoro in corso
-            avviso = st.info("Il sezionamento richiede circa un minuto per orientamento: non toccare la pagina finché non finisce.")
+            avviso = st.info("Seziono gli orientamenti e poi confronto tre processi sui migliori: "
+                             "non toccare la pagina finché non finisce.")
             n = len(dati["orientamenti"])
+            extra_totali = min(n, config.NUM_ORIENTAMENTI_VARIANTI) * sum(
+                not v.get("riferimento") for v in config.VARIANTI_PROCESSO)
+            totale_sezionamenti = n + extra_totali
             barra = st.progress(0.0, text=f"ElegooSlicer seziona {n} orientamenti...")
 
             def avanzamento(i, o):
-                barra.progress(i / n, text=f"ElegooSlicer seziona l'orientamento {o['id']} ({i + 1} di {n})...")
+                barra.progress(i / totale_sezionamenti,
+                               text=f"ElegooSlicer seziona l'orientamento {o['id']} ({i + 1} di {n})...")
 
             slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
                                             config.PROFILO_PROCESSO, profilo_filamento,
                                             config.SUPPORTI_SEZIONAMENTO, avanzamento)
             classifica.applica(dati)
+
+            def avanzamento_variante(i, o, variante, totale):
+                barra.progress((n + i) / (n + extra_totali),
+                               text=f"Confronto processi: orientamento {o['id']}, {variante['nome']} "
+                                    f"({i + 1} di {totale})...")
+
+            calcola_varianti(mesh, dati, cartella, profilo_filamento, priorita, avanzamento_variante)
+            barra.progress(1.0, text="Confronto dei processi completato")
             # Il vincitore reale può essere diverso da quello geometrico: riallinea
             # griglia e viste dettagliate senza cambiare gli ID degli orientamenti.
             griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
@@ -348,7 +384,52 @@ with tab_analisi:
             for e in au.get("errori", []):
                 st.warning(f"augura: {e}")
 
-        st.subheader("3. Consiglio di Claude")
+        st.subheader("3. Confronto delle varianti di processo")
+        if "ottimizzazione_processo" not in dati and SLICER and "sezionamento" in dati:
+            st.caption("Questa analisi è precedente al confronto automatico. Puoi calcolarlo senza rifare la geometria "
+                       "né i sezionamenti già presenti.")
+            if st.button("Confronta Dettaglio, Bilanciato e Veloce"):
+                from analisi import carica
+                percorso_mesh = percorso_modello_lavoro(cartella, dati)
+                if percorso_mesh is None:
+                    st.error("Il file del modello salvato non è più disponibile: occorre rifare l'analisi.")
+                else:
+                    mesh = carica(percorso_mesh)
+                    barra_varianti = st.progress(0.0, text="Preparo il confronto dei processi...")
+
+                    def avanzamento_storico(i, o, variante, totale):
+                        barra_varianti.progress(i / totale, text=f"Orientamento {o['id']}, {variante['nome']} "
+                                                          f"({i + 1} di {totale})...")
+
+                    filamento_usato = dati["sezionamento"]["filamento"]
+                    calcola_varianti(mesh, dati, cartella, filamento_usato, priorita, avanzamento_storico)
+                    salva_analisi(cartella, dati)
+                    st.rerun()
+
+        if "ottimizzazione_processo" in dati:
+            opt = ottimizzazione.aggiorna_priorita(dati["ottimizzazione_processo"], priorita)
+            rac = opt.get("raccomandazione")
+            if rac:
+                st.success(f"Per «{priorita}»: orientamento {rac['orientamento_id']}, "
+                           f"variante {rac['variante']}. {rac['motivo'].capitalize()}.")
+            righe_varianti = []
+            for r in opt.get("risultati", []):
+                righe_varianti.append({
+                    "orientamento": r["orientamento_id"], "variante": r["variante"],
+                    "layer mm": r["layer_height"], "pareti": r["wall_loops"],
+                    "riempimento": r["sparse_infill_density"], "tempo": r.get("tempo"),
+                    "materiale g": r.get("materiale_g"), "supporti g": r.get("supporti_g"),
+                    "Δ tempo %": r.get("delta_tempo_pct"), "Δ materiale %": r.get("delta_materiale_pct"),
+                    "errore": r.get("errore"),
+                })
+            tabella_varianti = pd.DataFrame(righe_varianti)
+            if "errore" in tabella_varianti and tabella_varianti["errore"].isna().all():
+                tabella_varianti = tabella_varianti.drop(columns=["errore"])
+            st.dataframe(tabella_varianti, width="stretch", hide_index=True)
+            st.caption("I delta sono calcolati rispetto a Bilanciato sullo stesso orientamento. La scelta per superficie, "
+                       "precisione o robustezza privilegia Dettaglio; velocità e materiale usano i valori misurati.")
+
+        st.subheader("4. Consiglio di Claude")
         if st.button("Chiedi a Claude come stamparlo", type="primary"):
             richiesta = {"scopo": scopo, "tipo": uso, "priorita": priorita, "condizioni": ambiente,
                          "filamenti_disponibili": filamenti, "multimateriale_per_supporti": multimateriale, "note": note}

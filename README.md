@@ -72,6 +72,17 @@ reali del G-code, più una stima delle sporgenze che il profilo "solo dal piatto
 le sole superfici non servite è 5 g ogni 1.000 mm², mediana dei lavori già sezionati. Il punteggio
 geometrico resta disponibile e viene usato come fallback se lo slicer manca o fallisce.
 
+Sui primi due orientamenti della classifica reale vengono poi confrontate tre **varianti di processo**:
+
+- **Dettaglio**: layer 0,12 mm, 3 pareti, riempimento 20%;
+- **Bilanciato**: il profilo abituale 0,16 mm, 2 pareti, riempimento 15% (riusa il G-code già prodotto);
+- **Veloce**: layer 0,24 mm, 2 pareti, riempimento 10%.
+
+La dashboard mostra tempo, materiale, supporti e variazioni percentuali rispetto a Bilanciato, quindi
+propone una combinazione coerente con la priorità scelta. Sono necessari solo quattro sezionamenti
+aggiuntivi: Dettaglio e Veloce per ciascuno dei due orientamenti. Anche le analisi salvate in precedenza
+possono eseguire il confronto senza ripetere l'analisi geometrica.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
