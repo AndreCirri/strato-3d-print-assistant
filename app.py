@@ -26,6 +26,7 @@ import lavorazioni
 import confronto
 from persistenza import salva_json
 from validazione import riga_valida
+import time
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 
 st.set_page_config(page_title="Assistente stampa 3D", page_icon="🧩", layout="wide")
@@ -48,6 +49,23 @@ DEFAULT_RICHIESTA = {
     "parte_critica": "nessuna indicata", "profilo_filamento": config.PROFILO_FILAMENTO, "budget_ricerca": 4}
 DEFAULT_RICHIESTA.update(usa_punti_carico=False, vincoli='', zona_critica='',
                         fissaggio_x=0., fissaggio_y=0., fissaggio_z=0., carico_x=0., carico_y=0., carico_z=10.)
+
+
+@st.fragment(run_every='2s')
+def mostra_avanzamento(cartella):
+    stato = lavorazioni.stato(cartella)
+    if stato.get('stato') != 'in corso':
+        st.rerun()
+    frazione = max(0., min(.99, stato.get('frazione', 0.)))
+    fase = stato.get('fase', 'Avvio')
+    completati, totale = stato.get('completati'), stato.get('totale')
+    passaggi = f' — {completati} di {totale} completati' if totale is not None else ''
+    st.progress(frazione, text=f'{int(frazione*100)}% — {fase}{passaggi}')
+    trascorsi = max(0, int(time.time() - stato.get('inizio', time.time())))
+    st.caption(f'Tempo trascorso: {trascorsi//60} min {trascorsi%60:02d} s. '
+               'Aggiornamento automatico ogni 2 secondi. La percentuale indica i passaggi, non il tempo residuo.')
+    if 'frazione' not in stato:
+        st.caption('Lavorazione avviata con la versione precedente: il dettaglio percentuale sarà disponibile dal prossimo avvio.')
 
 
 def apri_lavoro(cartella):
@@ -348,7 +366,7 @@ with tab_analisi:
         stato_lavoro = lavorazioni.stato(Path(st.session_state["lavoro"]))
         lavorazione_attiva = stato_lavoro.get("stato") == "in corso"
         if lavorazione_attiva:
-            st.info(f"Lavorazione in corso: {stato_lavoro.get('fase', 'avvio')}. Puoi cambiare scheda.")
+            mostra_avanzamento(Path(st.session_state['lavoro']))
             if st.button("Aggiorna avanzamento"):
                 st.rerun()
         elif stato_lavoro.get("stato") in ("errore", "interrotta"):

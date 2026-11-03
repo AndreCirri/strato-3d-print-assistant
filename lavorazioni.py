@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from persistenza import salva_json
+from avanzamento import Avanzamento
 
 
 def stato(cartella):
@@ -74,7 +75,7 @@ def avvia(cartella, modo="completa"):
     with os.fdopen(fd, "w") as f:
         f.write(str(os.getpid()))
     salva_json(cartella / "lavorazione.json", {"stato": "in corso", "pid": os.getpid(),
-                                               "modo": modo, "fase": "Avvio"})
+                                               "modo": modo, "fase": "Avvio", 'frazione': 0., 'inizio': time.time()})
     try:
         with (cartella / "lavorazione.log").open("a", encoding="utf-8") as log:
             processo = subprocess.Popen([sys.executable, '-X', 'faulthandler', str(Path(__file__).resolve()), str(cartella), modo],
@@ -96,25 +97,25 @@ def esegui(cartella, modo):
     import slicer_cli
     import diagnostica
     cartella = Path(cartella)
-    def progresso(fase):
-        salva_json(cartella / "lavorazione.json", {"stato": "in corso", "pid": os.getpid(),
-                                                   "modo": modo, "fase": fase})
+    avanzamento = Avanzamento(cartella, modo)
+    progresso = avanzamento.aggiorna
     try:
-        progresso("Avvio")
+        progresso("Avvio", 0.)
         richiesta = json.loads((cartella / "richiesta.json").read_text(encoding="utf-8"))
         if modo == "3mf":
             spec = json.loads((cartella / "esportazione.json").read_text(encoding="utf-8"))
-            progresso("Esportazione 3MF")
+            progresso("Esportazione 3MF", .05, 0, 1)
             slicer_cli.esporta_3mf(cartella / spec["stl"], cartella / spec["destinazione"],
                                   spec["processo"], spec["filamento"], spec["modifiche"])
-            salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo, 'pid': os.getpid()})
+            avanzamento.termina()
             return
         if (cartella / "analisi.json").exists():
             dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
             modello = cartella / Path(dati["file"]).name
+            progresso('Caricamento del modello', .02)
             mesh = analisi.carica(modello)
             if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
-                progresso("Aggiornamento geometria")
+                progresso("Aggiornamento geometria", .04)
                 analisi.aggiorna_geometria(mesh, dati)
                 classifica.applica(dati)
                 dati.pop("ottimizzazione_processo", None)
@@ -127,8 +128,9 @@ def esegui(cartella, modo):
                 import augura_addon
                 originale = modello
                 modello = modello.with_suffix(".stl")
+                progresso('Conversione STEP', .02)
                 augura_addon.step_in_stl(originale, modello)
-            progresso("Analisi geometrica")
+            progresso("Analisi geometrica", .04)
             mesh, dati = analisi.analizza(modello)
             dati["sha256"] = ingresso["sha256"]
             salva_json(cartella / "analisi.json", dati)
@@ -138,24 +140,28 @@ def esegui(cartella, modo):
                     "processo": config.PROFILO_PROCESSO,
                     "filamento": richiesta.get("profilo_filamento", config.PROFILO_FILAMENTO),
                     "supporti": config.SUPPORTI_SEZIONAMENTO})
-                progresso("Sezionamento degli orientamenti")
-                slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti",
-                                                sez["processo"], sez["filamento"], sez["supporti"])
-                classifica.applica(dati)
                 salva_json(cartella / "analisi.json", dati)
         if modo in ("completa", "varianti") and slicer_cli.disponibile():
-            progresso("Confronto dei processi")
+            progresso("Confronto dei processi", .1)
             confronto.calcola(mesh, dati, cartella, richiesta,
-                              lambda i, o, v, n: progresso(f"{v['nome']}, orientamento {o['id']} ({i+1}/{n})"))
+                              progresso=lambda frazione, fase, completati, totale:
+                                progresso(fase, .1 + .7 * frazione, completati, totale))
             salva_json(cartella / "analisi.json", dati)
         if modo in ('completa', 'varianti', 'controlli'):
-            progresso('Controlli di cavità, sezioni e toolpath')
-            diagnostica.calcola(cartella, dati, mesh)
+            base_controlli = .8 if modo in ('completa', 'varianti') else .1
+            ampiezza = .1 if modo == 'completa' else .89 if modo == 'controlli' else .19
+            progresso('Controlli di cavità, sezioni e toolpath', base_controlli)
+            diagnostica.calcola(cartella, dati, mesh,
+                avanzamento=lambda f, fase: progresso(fase, base_controlli + ampiezza * f))
             salva_json(cartella / 'analisi.json', dati)
         if modo in ("completa", "immagini"):
-            progresso("Creazione immagini")
+            base_immagini = .9 if modo == 'completa' else .1
+            totale_immagini = 1 + min(2, len(dati['orientamenti']))
+            progresso("Creazione griglia orientamenti", base_immagini, 0, totale_immagini)
             render.griglia_orientamenti(mesh, dati["orientamenti"], cartella / "orientamenti.png")
-            for o in dati["orientamenti"][:2]:
+            for i, o in enumerate(dati["orientamenti"][:2], 1):
+                progresso(f"Creazione viste — orientamento {o['id']}",
+                          base_immagini + (.98 - base_immagini) * i / totale_immagini, i, totale_immagini)
                 render.viste(mesh, o["trasformazione"], cartella / f"viste_{o['id']}.png")
             dati["immagini_da_aggiornare"] = False
             salva_json(cartella / "analisi.json", dati)
@@ -165,13 +171,13 @@ def esegui(cartella, modo):
             if Path(ingresso.get("file", "")).suffix.lower() in (".step", ".stp"):
                 import augura_addon
                 if augura_addon.disponibile():
-                    progresso("Controlli STEP")
+                    progresso("Controlli STEP", .98, 0, 1)
                     dati["augura"] = augura_addon.verifica(cartella / ingresso["file"])
                     salva_json(cartella / "analisi.json", dati)
-        salva_json(cartella / "lavorazione.json", {"stato": "completata", "modo": modo, 'pid': os.getpid()})
+        avanzamento.termina()
     except Exception as errore:
         traceback.print_exc()
-        salva_json(cartella / "lavorazione.json", {"stato": "errore", "modo": modo, 'pid': os.getpid(), "errore": str(errore)})
+        avanzamento.termina(errore)
     finally:
         (cartella / "lavorazione.lock").unlink(missing_ok=True)
 

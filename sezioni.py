@@ -74,14 +74,20 @@ def accessibilita(materiali, dominio, raggio=0):
     return regioni, gruppi
 
 
-def analizza(mesh, ugello=.4, massimo_sezioni=100, dati_toolpath=None):
+def analizza(mesh, ugello=.4, massimo_sezioni=100, dati_toolpath=None, avanzamento=None):
     if not mesh.is_volume:
         return {'disponibile': False, 'motivo': 'Serve una geometria volumetrica affidabile'}
     passo = max(.4, float(mesh.extents[2]) / massimo_sezioni)
     quote = np.arange(mesh.bounds[0,2] - passo/2, mesh.bounds[1,2] + passo, passo)
-    materiali = [sezione_materiale(mesh, float(z)) for z in quote]
+    materiali = []
+    for i, z in enumerate(quote):
+        if avanzamento:
+            avanzamento(.6 * i / len(quote), f'Sezioni geometriche — {i+1} di {len(quote)}')
+        materiali.append(sezione_materiale(mesh, float(z)))
     dominio = box(*(mesh.bounds[0,:2] - 3), *(mesh.bounds[1,:2] + 3))
+    if avanzamento: avanzamento(.6, 'Ricerca delle cavità chiuse')
     regioni, chiuse = accessibilita(materiali, dominio)
+    if avanzamento: avanzamento(.7, 'Verifica accessibilità dei supporti')
     regioni_utensile, difficili = accessibilita(materiali, dominio, raggio=1.)
     cavita = []
     for gruppo in chiuse:
@@ -94,6 +100,8 @@ def analizza(mesh, ugello=.4, massimo_sezioni=100, dati_toolpath=None):
     visti_fori = set()
     iniziato = False
     for livello in range(1, len(materiali)):
+        if avanzamento and livello % 5 == 0:
+            avanzamento(.8 + .19 * livello / len(materiali), f'Controllo ponti e fori — sezione {livello} di {len(materiali)}')
         attuale, prima = materiali[livello], materiali[livello-1]
         for parte in poligoni(attuale):
             if iniziato and not parte.intersects(prima.buffer(passo / math.tan(math.radians(30)))):
@@ -136,6 +144,7 @@ def analizza(mesh, ugello=.4, massimo_sezioni=100, dati_toolpath=None):
             if any(regioni[n][0] == livello and regioni[n][1].covers(Point(np.array([x,y]) - offset))
                    for n in nodi_chiusi):
                 supporti_chiusi += 1
+    if avanzamento: avanzamento(1., 'Controlli geometrici completati')
     return {'disponibile': True, 'passo_sezioni_mm': round(passo,3), 'numero_sezioni': len(quote),
             'cavita_chiuse': cavita, 'zone_inaccessibili_utensile_2mm': len(difficili),
             'fori_piccoli': fori[:100], 'ponti': ponti[:100], 'isole_geometriche': isole[:100],

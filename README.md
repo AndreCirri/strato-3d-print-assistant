@@ -92,8 +92,10 @@ le coppie orientamento/impostazioni già provate vengono escluse. I risultati in
 Il compromesso normalizza tempo, materiale, layer e indicatore di robustezza con pesi del 25% ciascuno.
 Si tratta di una ricerca locale: il budget non assicura di aver trovato l'ottimo globale.
 
-Analisi, confronto, immagini e 3MF vengono elaborati da un processo separato: puoi navigare tra le schede
-e premere **Aggiorna avanzamento** per leggere lo stato. Se un processo si interrompe, **Riprendi la
+Analisi, confronto, immagini e 3MF vengono elaborati da un processo separato: puoi navigare tra le schede.
+Una barra si aggiorna ogni due secondi e mostra percentuale, fase, contatore dei passaggi e tempo trascorso.
+La percentuale riguarda i passaggi eseguiti, non il tempo residuo; puoi anche premere **Aggiorna avanzamento**.
+Se un processo si interrompe, **Riprendi la
 lavorazione** recupera i checkpoint; soltanto i sezionamenti non validi vengono eseguiti di nuovo.
 Le cache verificano geometria, profili completi, filamento e versione dello slicer. I risultati precedenti
 senza queste informazioni richiedono un primo ricalcolo. Il confronto e il 3MF vengono invalidati quando

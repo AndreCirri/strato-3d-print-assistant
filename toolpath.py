@@ -1,12 +1,13 @@
 """Controlli del G-code estruso e degli spostamenti, senza comandare la stampante."""
 import math
 import re
+from pathlib import Path
 from collections import defaultdict
 
 import numpy as np
 
 
-def analizza(percorso, larghezza=.45, massimo_segmenti=300000):
+def analizza(percorso, larghezza=.45, massimo_segmenti=300000, avanzamento=None):
     pos = np.zeros(3)
     e = 0.
     relativo_e = False
@@ -22,8 +23,13 @@ def analizza(percorso, larghezza=.45, massimo_segmenti=300000):
     conteggio = 0
     archi_non_letti = 0
     limitato = False
+    dimensione = max(1, Path(percorso).stat().st_size)
+    letti = 0
     with open(percorso, encoding='utf-8', errors='replace') as f:
-        for riga in f:
+        for numero_riga, riga in enumerate(f):
+            letti += len(riga.encode('utf-8'))
+            if avanzamento and numero_riga % 2000 == 0:
+                avanzamento(.75 * min(1., letti / dimensione), 'Lettura dei percorsi G-code')
             if riga.startswith(';TYPE:'):
                 tipo = riga[6:].strip()
             codice = riga.split(';')[0].strip().split()
@@ -95,7 +101,10 @@ def analizza(percorso, larghezza=.45, massimo_segmenti=300000):
     sotto = {}
     isole = []
     discontinuita = []
-    for z, celle in sorted(strati.items()):
+    for indice_strato, (z, celle) in enumerate(sorted(strati.items())):
+        if avanzamento:
+            avanzamento(.75 + .25 * indice_strato / max(1,len(strati)),
+                         f'Controllo appoggi del toolpath — strato {indice_strato+1} di {len(strati)}')
         restanti = set(celle)
         componenti = []
         while restanti:
@@ -120,6 +129,8 @@ def analizza(percorso, larghezza=.45, massimo_segmenti=300000):
                     x, y = next(iter(comp))
                     isole.append({'z_mm': z, 'x_mm': x*passo, 'y_mm': y*passo, 'celle': len(comp)})
         sotto.update({c: z for c in celle})
+    if avanzamento:
+        avanzamento(1., 'Controllo toolpath completato')
     return {'segmenti_letti': conteggio, 'campionamento_mm': passo, 'limitato': limitato,
             'archi_non_analizzati': archi_non_letti, 'collisioni': collisioni,
             'isole_senza_appoggio': isole[:100], 'percorsi_disconnessi': discontinuita[:100],

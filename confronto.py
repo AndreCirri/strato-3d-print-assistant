@@ -32,7 +32,12 @@ def firma(modello, dati, richiesta):
                      "meccanica": meccanica(dati, richiesta) if richiesta.get("priorita") == "robustezza e rigidità" else None})
 
 
-def calcola(mesh, dati, cartella, richiesta, avanzamento=None):
+def calcola(mesh, dati, cartella, richiesta, avanzamento=None, progresso=None):
+    def notifica(frazione, fase, completati, totale):
+        if progresso:
+            progresso(frazione, fase, completati, totale)
+    riferimenti = len(dati['orientamenti'])
+    notifica(0., 'Preparazione profili e orientamenti', 0, riferimenti)
     sez = dati.get("sezionamento", {})
     processo = sez.get("processo", config.PROFILO_PROCESSO)
     filamento = sez.get("filamento", config.PROFILO_FILAMENTO)
@@ -44,7 +49,10 @@ def calcola(mesh, dati, cartella, richiesta, avanzamento=None):
             variante["impostazioni"] = {k: base[k] for k in variante["impostazioni"]}
     # Ricalcola o verifica tutti i riferimenti prima di scegliere i migliori orientamenti.
     slicer_cli.seziona_orientamenti(mesh, dati["orientamenti"], cartella / "sezionamenti", processo,
-                                    filamento, supporti)
+                                    filamento, supporti,
+                                    lambda i, o: notifica(.25 * i / max(1, riferimenti),
+                                        f"Orientamenti di riferimento — orientamento {o['id']}", i, riferimenti))
+    notifica(.25, 'Orientamenti di riferimento verificati', riferimenti, riferimenti)
     classifica.applica(dati)
     selezionati = list(dati["orientamenti"][:config.NUM_ORIENTAMENTI_VARIANTI])
     mec = meccanica(dati, richiesta)
@@ -55,11 +63,18 @@ def calcola(mesh, dati, cartella, richiesta, avanzamento=None):
                          "impostazioni": {"layer_height": "0.16", "wall_loops": str(mec["pareti_consigliate"]),
                                           "sparse_infill_density": "25%"}})
     # La cache controlla i dati completi; il primo passaggio dopo l'aggiornamento può richiedere un ricalcolo.
+    def avanza_variante(i, o, v, n):
+        notifica(.25 + .5 * i / max(1,n), f"Varianti di processo — {v['nome']}, orientamento {o['id']}", i, n)
+        if avanzamento:
+            avanzamento(i, o, v, n)
     extra = slicer_cli.seziona_varianti(mesh, selezionati, cartella / "varianti", processo,
-                                       filamento, varianti, avanzamento, supporti=supporti)
+                                       filamento, varianti, avanza_variante, supporti=supporti)
+    n_varianti = len(selezionati) * sum(not v.get('riferimento') for v in varianti)
+    notifica(.75, 'Varianti di processo completate', n_varianti, n_varianti)
     opt = ottimizzazione.costruisci(selezionati, varianti, extra, richiesta.get("priorita"), len(selezionati))
     budget = max(0, min(8, int(richiesta.get('budget_ricerca', 4))))
     for passo in range(budget):
+        notifica(.75 + .24 * passo / budget, 'Ricerca progressiva — selezione del candidato', passo, budget)
         proposta = ricerca.proponi(opt['risultati'], varianti, richiesta.get('priorita'), mec)
         if proposta is None:
             break
@@ -69,6 +84,8 @@ def calcola(mesh, dati, cartella, richiesta, avanzamento=None):
             varianti.append(variante)
         if avanzamento:
             avanzamento(passo, orientamento, variante, budget)
+        notifica(.75 + .24 * passo / budget,
+                  f"Ricerca progressiva — {variante['nome']}, orientamento {oid}", passo, budget)
         extra += slicer_cli.seziona_varianti(mesh, [orientamento], cartella / 'varianti', processo,
                                             filamento, [variante], supporti=supporti)
         # Le varianti locali non vengono misurate su tutti gli orientamenti: conserva solo le coppie provate.
@@ -85,4 +102,5 @@ def calcola(mesh, dati, cartella, richiesta, avanzamento=None):
     dati["ottimizzazione_processo"] = opt
     classifica.applica(dati)
     opt["firma"] = firma(cartella / Path(dati["file"]).name, dati, richiesta)
+    notifica(1., 'Confronto dei processi completato', len(opt.get('risultati', [])), len(opt.get('risultati', [])))
     return dati

@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory(prefix='assistente_integrazione_') as tmp:
         app.run()
         assert not app.exception, [e.message for e in app.exception]
         assert len(app.tabs) == 4
+        if lavorazioni.stato(p).get('stato') == 'in corso':
+            assert app.get('progress'), 'Barra di avanzamento assente'
         print('Dashboard e schede disponibili durante il calcolo', flush=True)
         attendi(p)
         dati = json.loads((p / 'analisi.json').read_text(encoding='utf-8'))
