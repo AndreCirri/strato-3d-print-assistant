@@ -387,8 +387,10 @@ with tab_analisi:
         cartella = Path(st.session_state["lavoro"])
         dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
         if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
+            aggiornamento_geometria = st.info(
+                "Aggiorno questa analisi al nuovo riconoscimento dei solidi sovrapposti..."
+            )
             from analisi import aggiorna_geometria, carica
-            from render import griglia_orientamenti, viste
             percorso_mesh = percorso_modello_lavoro(cartella, dati)
             if percorso_mesh is not None:
                 mesh_aggiornata = carica(percorso_mesh)
@@ -398,13 +400,15 @@ with tab_analisi:
                 precedente = dati.get("ottimizzazione_processo")
                 if precedente and precedente.get("orientamenti_confrontati") != nuovi_primi:
                     dati.pop("ottimizzazione_processo", None)
-                griglia_orientamenti(mesh_aggiornata, dati["orientamenti"], cartella / "orientamenti.png")
-                for orientamento in dati["orientamenti"][:2]:
-                    viste(mesh_aggiornata, orientamento["trasformazione"],
-                          cartella / f"viste_{orientamento['id']}.png",
-                          f"Orientamento {orientamento['id']} ({orientamento['origine']})")
+                dati["immagini_da_aggiornare"] = True
                 salva_analisi(cartella, dati)
-                st.info("Analisi geometrica aggiornata: i solidi sovrapposti non vengono più contati come supporti.")
+                aggiornamento_geometria.info(
+                    "Analisi geometrica aggiornata: i solidi sovrapposti non vengono più contati come supporti."
+                )
+            else:
+                aggiornamento_geometria.warning(
+                    "Non posso aggiornare la geometria perché il file del modello non è più disponibile."
+                )
         dati = classifica.applica(dati)
         st.subheader("2. Cosa dice la geometria")
         m1, m2, m3, m4 = st.columns(4)
@@ -492,6 +496,25 @@ with tab_analisi:
             if storico_personale["compensazione_dimensionale"]:
                 st.info(storico_personale["compensazione_dimensionale"]["indicazione"])
             st.caption(storico_personale["limite"])
+        if dati.get("immagini_da_aggiornare"):
+            st.warning("Le misure sono aggiornate; le immagini appartengono alla versione precedente dell'analisi.")
+            if st.button("Aggiorna le immagini degli orientamenti"):
+                from analisi import carica
+                from render import griglia_orientamenti, viste
+                percorso_mesh = percorso_modello_lavoro(cartella, dati)
+                if percorso_mesh is None:
+                    st.error("Il file del modello non è più disponibile.")
+                else:
+                    with st.spinner("Rigenero la griglia e le viste dei primi orientamenti..."):
+                        mesh_immagini = carica(percorso_mesh)
+                        griglia_orientamenti(mesh_immagini, dati["orientamenti"], cartella / "orientamenti.png")
+                        for orientamento in dati["orientamenti"][:2]:
+                            viste(mesh_immagini, orientamento["trasformazione"],
+                                  cartella / f"viste_{orientamento['id']}.png",
+                                  f"Orientamento {orientamento['id']} ({orientamento['origine']})")
+                        dati["immagini_da_aggiornare"] = False
+                        salva_analisi(cartella, dati)
+                    st.rerun()
         st.image(str(cartella / "orientamenti.png"))
         for img in immagini_lavoro(cartella, dati)[1:]:
             st.image(str(img))
