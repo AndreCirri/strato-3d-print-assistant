@@ -9,10 +9,7 @@ GRAMMI_PER_1000_MM2 = 5.0
 GRAMMI_PER_MM2 = GRAMMI_PER_1000_MM2 / 1000
 PESO_SUPPORTI_SUL_PEZZO = 3.0
 PESO_BRIM = 0.25
-
-
-def _numero(valore):
-    return isinstance(valore, (int, float)) and not isinstance(valore, bool)
+from validazione import numero as _numero, risultato_valido
 
 
 def punteggio_geometrico(orientamento):
@@ -24,7 +21,7 @@ def calcola_punteggio_reale(orientamento):
     """Aggiunge le componenti del punteggio reale; False se il sezionamento non è valido."""
     slicer = orientamento.get("slicer") or {}
     supporti_g = slicer.get("supporti_g")
-    if not _numero(supporti_g) or "errore" in slicer:
+    if not risultato_valido(slicer):
         for campo in ("supporti_sul_pezzo_stimati_g", "supporti_equivalenti_g",
                       "penalita_stabilita_reale_g", "punteggio_reale"):
             orientamento.pop(campo, None)

@@ -15,7 +15,7 @@ class CalibrazioneTest(unittest.TestCase):
 
         self.assertTrue(esito["dati_sufficienti"])
         self.assertEqual(esito["problemi_ricorrenti"][0]["occorrenze"], 2)
-        self.assertEqual(esito["mediane_registrate"]["temperatura ugello °C"], 240)
+        self.assertEqual(esito["mediane_registrate"], {})
         self.assertNotIn("pezzo fragile", esito["problemi_osservati"])
 
     def test_non_chiama_previsione_una_sola_osservazione(self):

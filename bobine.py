@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 
 import config
+from persistenza import salva_json
 
 
 def tutte(percorso=None):
@@ -15,7 +16,7 @@ def tutte(percorso=None):
 
 def _salva(voci, percorso=None):
     percorso = Path(percorso or config.BOBINE)
-    percorso.write_text(json.dumps(voci, ensure_ascii=False, indent=2), encoding="utf-8")
+    salva_json(percorso, voci)
 
 
 def aggiungi(voce, percorso=None):
@@ -45,6 +46,8 @@ def aggiorna_residuo(identificativo, residuo_g, percorso=None):
     voce["residuo_g"] = min(float(voce["peso_netto_g"]), max(0.0, float(residuo_g)))
     if voce["residuo_g"] == 0:
         voce["stato"] = "esaurita"
+    elif voce.get("stato") == "esaurita":
+        voce["stato"] = "da essiccare"
     _salva(voci, percorso)
     return voce
 
@@ -59,11 +62,14 @@ def aggiorna_da_pesata(identificativo, peso_lordo_g, percorso=None):
     return aggiorna_residuo(identificativo, float(peso_lordo_g) - float(voce.get("tara_g", 0)), percorso)
 
 
-def stime(voci, materiale, grammi_necessari):
-    grammi = max(0.0, float(grammi_necessari))
+def stime(voci, materiale, grammi_necessari, margine_pct=5):
+    if not materiale:
+        return []
+    consumo = max(0.0, float(grammi_necessari))
+    grammi = consumo * (1 + margine_pct / 100)
     risultati = []
     for voce in voci:
-        if materiale and voce.get("materiale") != materiale:
+        if voce.get("materiale") != materiale or voce.get("stato", "pronta") != "pronta":
             continue
         peso = float(voce.get("peso_netto_g") or 0)
         costo = float(voce.get("costo_eur") or 0)
@@ -72,7 +78,8 @@ def stime(voci, materiale, grammi_necessari):
             "id": voce["id"], "bobina": voce["nome"], "materiale": voce["materiale"],
             "residuo_g": round(residuo, 1), "sufficiente": residuo >= grammi,
             "margine_g": round(residuo - grammi, 1),
-            "costo_stimato_eur": round(grammi * costo / peso, 2) if peso > 0 else None,
+            "riserva_g": round(grammi - consumo, 1),
+            "costo_stimato_eur": round(consumo * costo / peso, 2) if peso > 0 and costo > 0 else None,
             "stato": voce.get("stato", "pronta"),
         })
     return sorted(risultati, key=lambda r: (not r["sufficiente"], r["stato"] != "pronta", r["residuo_g"]))

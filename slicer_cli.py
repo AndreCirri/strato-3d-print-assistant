@@ -15,6 +15,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import config
+from persistenza import salva_json, impronta, impronta_file
+from validazione import risultato_valido
 
 ESEGUIBILE = Path(r"C:\Program Files\ElegooSlicer\elegoo-slicer.exe")
 PROFILI = Path(r"C:\Program Files\ElegooSlicer\resources\profiles\Elegoo")
@@ -25,10 +27,16 @@ def disponibile():
     return ESEGUIBILE.exists() and PROFILI.exists()
 
 
-@lru_cache(maxsize=1)
 def _indice():
+    files = tuple((str(f), f.stat().st_mtime_ns, f.stat().st_size) for f in sorted(PROFILI.rglob("*.json")))
+    return _carica_indice(files)
+
+
+@lru_cache(maxsize=1)
+def _carica_indice(files):
     indice = {}
-    for f in PROFILI.rglob("*.json"):
+    for percorso, _, _ in files:
+        f = Path(percorso)
         try:
             j = json.loads(f.read_text(encoding="utf-8"))
         except Exception:
@@ -138,18 +146,64 @@ def risultato_gcode(percorso, filamento):
     brim, avvio = per_tipo.get("Brim", 0.0), per_tipo.get("Custom", 0.0)
     # "filamento_g" è il totale dichiarato dallo slicer; le voci sotto sono misurate sui movimenti
     # del G-code e sommano il filamento davvero estruso (il dichiarato conta anche ~retrazioni/spurgo)
-    return {"gcode": str(percorso), **numeri,
+    risultato = {"gcode": str(percorso), **numeri,
             "tempo_s": secondi(numeri.get("tempo", "")),
             "pezzo_g": round(sum(per_tipo.values()) - supporti - brim - avvio, 2),
             "supporti_g": round(supporti, 2), "brim_g": round(brim, 2), "linea_avvio_g": round(avvio, 2),
             "estruso_g": round(sum(per_tipo.values()), 2),
             "per_tipo_g": per_tipo}
+    with Path(percorso).open("rb") as f:
+        f.seek(max(0, Path(percorso).stat().st_size - 40000))
+        completo = b"; CONFIG_BLOCK_END" in f.read()
+    if not completo or not risultato_valido(risultato) or not numeri.get("strati"):
+        raise ValueError("G-code incompleto o privo di tempo, materiale o strati validi")
+    risultato["consumo_totale_g"] = max(risultato["estruso_g"], risultato.get("filamento_g", 0))
+    return risultato
+
+
+def contesto(stl, macchina, processo, filamento):
+    stat = ESEGUIBILE.stat()
+    motore = ESEGUIBILE.parent / "ElegooSlicer.dll"
+    motore_stat = motore.stat() if motore.exists() else None
+    versione = _firma_eseguibile(str(ESEGUIBILE), str(motore), stat.st_size, stat.st_mtime_ns,
+                                 motore_stat.st_size if motore_stat else 0,
+                                 motore_stat.st_mtime_ns if motore_stat else 0)
+    return impronta({"stl": impronta_file(stl), "macchina": macchina, "processo": processo,
+                     "filamento": filamento, "slicer": versione,
+                     "parser": 2})
+
+
+@lru_cache(maxsize=4)
+def _firma_eseguibile(percorso, motore_percorso, dimensione, modificato, dimensione_motore, modificato_motore):
+    motore = Path(motore_percorso)
+    return [percorso, impronta_file(percorso), impronta_file(motore) if motore.exists() else None]
+
+
+def cache_valida(cartella, chiave, nome="cache.json", artefatto=None):
+    cartella = Path(cartella)
+    try:
+        dati = json.loads((cartella / nome).read_text(encoding="utf-8"))
+        file = Path(artefatto) if artefatto else cartella / dati["file"]
+        return dati["contesto"] == chiave and dati["sha256"] == impronta_file(file)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def salva_cache(cartella, chiave, artefatto, nome="cache.json"):
+    salva_json(Path(cartella) / nome, {"contesto": chiave, "file": Path(artefatto).name,
+                                     "sha256": impronta_file(artefatto)})
 
 
 def seziona(stl, macchina, processo, filamento, cartella=None, timeout=600):
     """Seziona un STL (già orientato) e ritorna i numeri del G-code. I profili sono dict completi."""
     cartella = Path(cartella or tempfile.mkdtemp(prefix="seziona_"))
     cartella.mkdir(parents=True, exist_ok=True)
+    stl = Path(stl).resolve()
+    cartella = cartella.resolve()
+    chiave = contesto(stl, macchina, processo, filamento)
+    if cache_valida(cartella, chiave):
+        metadati = json.loads((cartella / "cache.json").read_text(encoding="utf-8"))
+        return risultato_gcode(cartella / metadati["file"], filamento)
     percorsi = {}
     for nome, prof in (("macchina", macchina), ("processo", processo), ("filamento", filamento)):
         percorsi[nome] = cartella / f"{nome}.json"
@@ -165,33 +219,23 @@ def seziona(stl, macchina, processo, filamento, cartella=None, timeout=600):
                        timeout=timeout, cwd=str(cartella))
     (cartella / "log.txt").write_text((r.stdout or "") + "\n" + (r.stderr or ""), encoding="utf-8")
     gcode = sorted(cartella.glob("*.gcode"))
-    if not gcode:
+    if r.returncode != 0 or not gcode:
         raise RuntimeError(f"nessun G-code prodotto (uscita {r.returncode}), vedi {cartella / 'log.txt'}")
-    return risultato_gcode(gcode[0], filamento)
-
-
-def _cache_variante(sotto, impostazioni, filamento):
-    """Riusa un G-code completo solo se il profilo salvato coincide con le impostazioni richieste."""
-    profilo_salvato = sotto / "processo.json"
-    gcode = sorted(sotto.glob("*.gcode"))
-    if not profilo_salvato.is_file() or not gcode:
-        return None
-    try:
-        salvato = json.loads(profilo_salvato.read_text(encoding="utf-8"))
-        if any(str(salvato.get(k)) != str(v) for k, v in impostazioni.items()):
-            return None
-        risultato = risultato_gcode(gcode[0], filamento)
-        if not risultato.get("tempo_s"):
-            return None
-        risultato.pop("gcode", None)
-        return risultato
-    except (OSError, ValueError, TypeError):
-        return None
+    risultato = risultato_gcode(gcode[0], filamento)
+    salva_cache(cartella, chiave, gcode[0])
+    return risultato
 
 
 def profili(processo, filamento, modifiche_processo=None):
     """Stampante dalla configurazione + processo e filamento scelti, appiattiti."""
     return (profilo(config.PROFILO_STAMPANTE), profilo(processo, modifiche_processo), profilo(filamento))
+
+
+def progetto_valido(stl, destinazione, processo, filamento, modifiche):
+    macchina, proc, fil = profili(processo, filamento, modifiche)
+    destinazione = Path(destinazione)
+    return cache_valida(destinazione.parent, contesto(stl, macchina, proc, fil),
+                        destinazione.name + ".json", destinazione)
 
 
 def esporta_3mf(stl, destinazione, processo, filamento, modifiche_processo=None, timeout=600):
@@ -201,6 +245,7 @@ def esporta_3mf(stl, destinazione, processo, filamento, modifiche_processo=None,
     if destinazione.exists():
         destinazione.unlink()
     macchina, proc, fil = profili(processo, filamento, modifiche_processo)
+    chiave = contesto(stl, macchina, proc, fil)
     with tempfile.TemporaryDirectory(prefix="profilo_3mf_") as temporanea:
         temporanea = Path(temporanea)
         percorsi = {}
@@ -217,6 +262,11 @@ def esporta_3mf(stl, destinazione, processo, filamento, modifiche_processo=None,
     if not destinazione.is_file() or destinazione.stat().st_size == 0:
         dettaglio = ((esito.stdout or "") + "\n" + (esito.stderr or "")).strip()[-500:]
         raise RuntimeError(f"progetto 3MF non prodotto (uscita {esito.returncode}): {dettaglio}")
+    import zipfile
+    with zipfile.ZipFile(destinazione) as archivio:
+        if archivio.testzip() or "Metadata/project_settings.config" not in archivio.namelist():
+            raise ValueError("Archivio 3MF non valido")
+    salva_cache(destinazione.parent, chiave, destinazione, destinazione.name + ".json")
     return destinazione
 
 
@@ -248,7 +298,7 @@ def seziona_orientamenti(mesh, orientamenti, cartella, processo, filamento, modi
     return risultati
 
 
-def seziona_varianti(mesh, orientamenti, cartella, processo, filamento, varianti, avanzamento=None):
+def seziona_varianti(mesh, orientamenti, cartella, processo, filamento, varianti, avanzamento=None, supporti=None):
     """Seziona le varianti non di riferimento per gli orientamenti ricevuti.
 
     La variante di riferimento è già presente in ``orientamento['slicer']`` e viene saltata.
@@ -271,14 +321,11 @@ def seziona_varianti(mesh, orientamenti, cartella, processo, filamento, varianti
         stl = sotto / "pezzo.stl"
         m.export(stl)
         proc = dict(processo_base)
-        proc.update(config.SUPPORTI_SEZIONAMENTO)
+        proc.update(config.SUPPORTI_SEZIONAMENTO if supporti is None else supporti)
         proc.update(variante["impostazioni"])
         try:
-            impostazioni = {**config.SUPPORTI_SEZIONAMENTO, **variante["impostazioni"]}
-            r = _cache_variante(sotto, impostazioni, fil)
-            if r is None:
-                r = seziona(stl, macchina, proc, fil, sotto)
-                r.pop("gcode", None)
+            r = seziona(stl, macchina, proc, fil, sotto)
+            r.pop("gcode", None)
         except Exception as e:
             r = {"errore": str(e)[:300]}
         risultati.append({"orientamento_id": o["id"], "variante_id": variante["id"], "risultato": r})

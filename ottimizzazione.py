@@ -1,8 +1,5 @@
 """Confronto tra varianti di processo sui migliori orientamenti."""
-
-
-def _numero(valore):
-    return isinstance(valore, (int, float)) and not isinstance(valore, bool)
+from validazione import numero as _numero, riga_valida
 
 
 def _materiale_g(risultato):
@@ -36,8 +33,7 @@ def _indicatori(riga):
 
 def frontiera_pareto(righe):
     """Candidati non dominati per tempo/materiale misurati e due indicatori dichiarati."""
-    valide = [r for r in righe if not r.get("errore") and _numero(r.get("tempo_s"))
-              and _numero(r.get("materiale_g"))]
+    valide = [r for r in righe if riga_valida(r)]
     frontiera = []
     for candidata in valide:
         c = _indicatori(candidata)
@@ -60,8 +56,7 @@ def frontiera_pareto(righe):
 
 
 def alternative(righe):
-    valide = [r for r in righe if not r.get("errore") and _numero(r.get("tempo_s"))
-              and _numero(r.get("materiale_g"))]
+    valide = [r for r in righe if riga_valida(r)]
     if not valide:
         return []
 
@@ -100,8 +95,7 @@ def alternative(righe):
 
 
 def scegli(righe, priorita):
-    valide = [r for r in righe if not r.get("errore") and _numero(r.get("tempo_s"))
-              and _numero(r.get("materiale_g"))]
+    valide = [r for r in righe if riga_valida(r)]
     if not valide:
         return None
 
@@ -113,7 +107,8 @@ def scegli(righe, priorita):
         scelta = min(valide, key=lambda r: (r["materiale_g"], r["tempo_s"], r["posizione_orientamento"]))
         motivo = "è la combinazione che usa meno materiale depositato"
     elif any(x in p for x in ("robustezza", "rigidità")):
-        preferite = [r for r in valide if r["variante_id"] == "robusto"] or \
+        preferite = [r for r in valide if r["variante_id"] == "meccanico"] or \
+                    [r for r in valide if r["variante_id"] == "robusto"] or \
                     [r for r in valide if r["variante_id"] == "dettaglio"] or valide
         scelta = min(preferite, key=lambda r: (r["posizione_orientamento"], r["tempo_s"]))
         motivo = "la priorità richiede più pareti e più riempimento"
@@ -158,7 +153,7 @@ def costruisci(orientamenti, varianti, risultati_extra, priorita, massimo_orient
             if "errore" in risultato:
                 riga["errore"] = risultato["errore"]
             else:
-                for campo in ("tempo", "tempo_s", "pezzo_g", "supporti_g", "brim_g", "strati"):
+                for campo in ("tempo", "tempo_s", "pezzo_g", "supporti_g", "brim_g", "strati", "consumo_totale_g"):
                     riga[campo] = risultato.get(campo)
                 riga["materiale_g"] = _materiale_g(risultato)
             temporanee.append(riga)
@@ -187,7 +182,7 @@ def costruisci(orientamenti, varianti, risultati_extra, priorita, massimo_orient
     }
 
 
-def aggiorna_priorita(ottimizzazione, priorita):
+def aggiorna_priorita(ottimizzazione, priorita, meccanica=None):
     """Ricalcola la raccomandazione senza ripetere i sezionamenti."""
     ottimizzazione["priorita"] = priorita
     righe = ottimizzazione.get("risultati", [])
@@ -197,5 +192,10 @@ def aggiorna_priorita(ottimizzazione, priorita):
         riga["pareto"] = (riga["orientamento_id"], riga["variante_id"]) in chiavi_pareto
     ottimizzazione["frontiera_pareto"] = pareto
     ottimizzazione["alternative"] = alternative(righe)
-    ottimizzazione["raccomandazione"] = scegli(righe, priorita)
+    candidate = righe
+    if meccanica and any(x in (priorita or "") for x in ("robustezza", "rigidità")):
+        candidate = [r for r in righe if r["orientamento_id"] == meccanica["orientamento_consigliato"]
+                     and int(r["wall_loops"]) >= meccanica["pareti_consigliate"]]
+    ottimizzazione["raccomandazione"] = scegli(candidate, priorita)
+    ottimizzazione["richiede_confronto_meccanico"] = bool(meccanica and not ottimizzazione["raccomandazione"])
     return ottimizzazione

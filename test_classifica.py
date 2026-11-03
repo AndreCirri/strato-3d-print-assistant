@@ -8,7 +8,7 @@ def orientamento(identificatore, geometrico, supporti_g=None, sul_pezzo=0, brim_
                   penalita=0, errore=None):
     slicer = {}
     if supporti_g is not None:
-        slicer.update({"supporti_g": supporti_g, "brim_g": brim_g})
+        slicer.update({"supporti_g": supporti_g, "brim_g": brim_g, "tempo_s": 60, "pezzo_g": 1})
     if errore:
         slicer["errore"] = errore
     return {

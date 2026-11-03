@@ -34,7 +34,7 @@ def valuta(orientamenti, direzione, sollecitazione, parte_critica="nessuna indic
     gli orientamenti già analizzati.
     """
     vettore = DIREZIONI.get(direzione)
-    if vettore is None or sollecitazione == "non specificata":
+    if not orientamenti or vettore is None or sollecitazione in ("non specificata", "torsione", "urti ripetuti"):
         return None
 
     fattore = _fattore_sollecitazione(sollecitazione)

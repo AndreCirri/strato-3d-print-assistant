@@ -18,13 +18,15 @@ CORREZIONI = {
 }
 
 
-def _numeri(voci, campo):
-    return [float(v[campo]) for v in voci if isinstance(v.get(campo), (int, float)) and v[campo] != 0]
+def _numeri(voci, campo, includi_zero=False):
+    from validazione import numero
+    return [float(v[campo]) for v in voci if numero(v.get(campo)) and (includi_zero or v[campo] != 0)]
 
 
-def analizza(voci, materiale=None, soglia=2):
+def analizza(voci, materiale=None, soglia=2, profilo=None):
     """Riassume ricorrenze per materiale; suggerisce correzioni solo oltre la soglia scelta."""
-    pertinenti = [v for v in voci if not materiale or v.get("materiale") == materiale]
+    pertinenti = [v for v in voci if (not materiale or v.get("materiale") == materiale)
+                  and (not profilo or (v.get("profilo_filamento") or "__non_annotato__") == profilo)]
     conteggi = Counter(p for v in pertinenti for p in v.get("problemi", []))
     ricorrenti = [{
         "problema": problema,
@@ -33,7 +35,7 @@ def analizza(voci, materiale=None, soglia=2):
         "correzione": CORREZIONI.get(problema, "Confronta le impostazioni delle stampe riuscite e fallite."),
     } for problema, conteggio in conteggi.most_common() if conteggio >= soglia]
 
-    dimensionali = _numeri(pertinenti, "errore_dimensionale_mm")
+    dimensionali = _numeri(pertinenti, "errore_dimensionale_mm", includi_zero=True)
     compensazione = None
     if len(dimensionali) >= soglia:
         errore = round(median(dimensionali), 3)
@@ -43,7 +45,10 @@ def analizza(voci, materiale=None, soglia=2):
                            + ("più grande" if errore > 0 else "più piccolo")
                            + "; conferma il dato per asse prima di compensare nello slicer.",
         }
+        if errore == 0:
+            compensazione["indicazione"] = "L'errore dimensionale mediano registrato è zero."
 
+    riuscite = [v for v in pertinenti if v.get("esito") in ("buona", "ottima") and not v.get("problemi")]
     parametri = {}
     for campo, etichetta in (
         ("temperatura_ugello_c", "temperatura ugello °C"),
@@ -52,7 +57,7 @@ def analizza(voci, materiale=None, soglia=2):
         ("flow_pct", "flow %"),
         ("retrazione_mm", "retrazione mm"),
     ):
-        valori = _numeri(pertinenti, campo)
+        valori = _numeri(riuscite, campo)
         if valori:
             parametri[etichetta] = round(median(valori), 2)
 
@@ -64,6 +69,8 @@ def analizza(voci, materiale=None, soglia=2):
         "problemi_ricorrenti": ricorrenti,
         "compensazione_dimensionale": compensazione,
         "mediane_registrate": parametri,
+        "stampe_riuscite": len(riuscite),
+        "origine_correzioni": "Indicazioni predefinite per il difetto, non correlazioni apprese dai parametri.",
         "soglia_occorrenze": soglia,
         "limite": "Le correzioni derivano da ricorrenze annotate, non da un modello predittivo.",
     }

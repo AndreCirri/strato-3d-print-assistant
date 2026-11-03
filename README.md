@@ -85,6 +85,13 @@ propone una combinazione coerente con la priorità scelta e mostra la frontiera 
 sono misurati; superficie e robustezza sono indicatori dichiarati basati su layer, pareti e riempimento.
 Le analisi precedenti possono aggiungere Economico e Robusto riusando i sezionamenti già presenti.
 
+Analisi, confronto, immagini e 3MF vengono elaborati da un processo separato: puoi navigare tra le schede
+e premere **Aggiorna avanzamento** per leggere lo stato. Se un processo si interrompe, **Riprendi la
+lavorazione** recupera i checkpoint; soltanto i sezionamenti non validi vengono eseguiti di nuovo.
+Le cache verificano geometria, profili completi, filamento e versione dello slicer. I risultati precedenti
+senza queste informazioni richiedono un primo ricalcolo. Il confronto e il 3MF vengono invalidati quando
+cambiano i loro input; una configurazione obsoleta non viene offerta come download aggiornato.
+
 Per la combinazione consigliata si possono scaricare un **profilo di processo JSON** importabile in
 ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Un terzo pulsante genera con ElegooSlicer
 un **progetto 3MF** che contiene modello e configurazioni. Il profilo deriva da quello abituale ed è
@@ -93,6 +100,9 @@ esportato completo con le impostazioni della variante e dei supporti usate nel c
 Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la componente che agisce
 normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,
 con un primo suggerimento sul numero di pareti; non è una simulazione FEM e non stima il carico di rottura.
+Con priorità robustezza viene misurato anche il processo **Meccanico** nell'orientamento indicato,
+con il numero di pareti richiesto; i download sono disponibili solo dopo questo confronto. Per flessione
+va indicato l'asse della tensione locale. Torsione e urti non sono valutabili dall'attuale euristica.
 
 I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problemi della mesh, pareti sotto
 due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di
@@ -103,10 +113,15 @@ loro superfici interne non vengono conteggiate come sporgenze da sostenere.
 Il diario può registrare anche temperature, velocità, flow, retrazione ed errore dimensionale. Le
 **tendenze personali** compaiono solo dopo almeno due osservazioni coerenti per lo stesso materiale:
 sono frequenze e mediane leggibili, non un modello che pretende di prevedere difetti con pochi dati.
+Le statistiche distinguono profilo e materiale. Le mediane dei parametri usano solo stampe riuscite senza
+difetti annotati; le correzioni proposte sono indicazioni predefinite. Nel campo dimensionale vuoto non
+c'è una misura, mentre zero indica una misura corretta. Scopo, priorità e carichi sono salvati anche senza Claude.
 
 La scheda **Bobine** conserva materiale, colore, tara, costo e grammi residui. Il residuo si aggiorna
 sottraendo una stampa oppure inserendo il peso lordo misurato. Per la configurazione consigliata la
 dashboard indica automaticamente se una bobina compatibile basta e stima costo e materiale restante.
+La verifica usa il consumo totale dello slicer, avvio incluso, e una riserva del 5%. Sono considerate solo
+bobine pronte con materiale riconosciuto; un prezzo non annotato non viene mostrato come costo zero.
 
 ## Add-on augura (facoltativo)
 
