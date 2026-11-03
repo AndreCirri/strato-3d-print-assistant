@@ -7,3 +7,4 @@ bobine.json
 esterni/
 .venv/
 wordpress-mcp.log
+.stark/

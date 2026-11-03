@@ -1,5 +1,7 @@
 # Assistente di stampa 3D
 
+*[Read in English](README.en.md).*
+
 Analizza un file da stampare, chiede a Claude come stamparlo e spiega il perché di ogni scelta.
 Tiene un diario delle stampe, così i consigli migliorano con l'esperienza sulla tua stampante.
 
@@ -175,11 +177,21 @@ Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella l
 - `diario.jsonl` e `foto/`: il diario di stampa;
 - `bobine.json`: inventario personale delle bobine, escluso da Git.
 
-## Licenze
+## Licenza
 
-`orienta_slicer.py` è una traduzione di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
-rilasciato sotto **AGPL-3.0**: se il progetto viene distribuito o reso pubblico, quel file (e il
-programma che lo include) va distribuito con una licenza compatibile.
+Copyright (C) 2026 Andrea Cirrincione.
+
+Questo programma è software libero: puoi ridistribuirlo e/o modificarlo secondo i termini della
+**GNU Affero General Public License versione 3** (AGPL-3.0), pubblicata dalla Free Software Foundation.
+È distribuito nella speranza che sia utile, ma **senza alcuna garanzia**. Il testo completo è nel file
+[`LICENSE`](LICENSE).
+
+In breve: chiunque può usare, studiare, modificare e ridistribuire il programma, anche a pagamento, ma
+le versioni modificate, anche quelle offerte solo come servizio web, devono restare AGPL-3.0 con il
+codice sorgente disponibile per chi le usa.
+
+`orienta_slicer.py` è una traduzione in Python di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
+anch'esso rilasciato sotto AGPL-3.0; i file originali sono indicati nell'intestazione del modulo.
 
 ## Da fare
 
