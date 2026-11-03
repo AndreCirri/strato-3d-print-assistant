@@ -4,6 +4,7 @@ from pathlib import Path
 CARTELLA = Path(__file__).resolve().parent
 LAVORI = CARTELLA / "lavori"          # una sottocartella per ogni analisi
 DIARIO = CARTELLA / "diario.jsonl"     # una riga per ogni stampa annotata
+BOBINE = CARTELLA / "bobine.json"       # inventario personale, non versionato
 FOTO = CARTELLA / "foto"
 
 STAMPANTE = {

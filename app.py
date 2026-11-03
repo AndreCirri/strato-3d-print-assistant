@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 import augura_addon
+import bobine
 import calibrazione
 import classifica
 import config
@@ -101,7 +102,9 @@ with st.sidebar:
                     stato.update(label="augura installato", state="complete")
                     st.rerun()
 
-tab_analisi, tab_diario, tab_storico = st.tabs(["Analizza un pezzo", "Diario di stampa", "Analisi passate"])
+tab_analisi, tab_diario, tab_bobine, tab_storico = st.tabs(
+    ["Analizza un pezzo", "Diario di stampa", "Bobine", "Analisi passate"]
+)
 
 
 def tabella_confronto(dati, cartella):
@@ -528,6 +531,26 @@ with tab_analisi:
                         )
                     st.caption("Importa il JSON in ElegooSlicer come configurazione di processo. "
                                "Lo STL è già ruotato e appoggiato sul piatto nell'orientamento consigliato.")
+                    riga_scelta = next((r for r in opt.get("risultati", [])
+                                        if r["orientamento_id"] == rac["orientamento_id"]
+                                        and r["variante_id"] == rac["variante_id"]), None)
+                    materiale_g = (riga_scelta or {}).get("materiale_g")
+                    filamento_scelto = dati.get("sezionamento", {}).get("filamento", "")
+                    materiale_bobina = calibrazione.materiale_da_profilo(filamento_scelto, config.FILAMENTI)
+                    if isinstance(materiale_g, (int, float)):
+                        disponibilita = bobine.stime(bobine.tutte(), materiale_bobina, materiale_g)
+                        if disponibilita:
+                            migliore_bobina = disponibilita[0]
+                            if migliore_bobina["sufficiente"]:
+                                costo = migliore_bobina["costo_stimato_eur"]
+                                costo_testo = f", costo stimato {costo:.2f} €" if costo is not None else ""
+                                st.info(f"Bobina «{migliore_bobina['bobina']}»: materiale sufficiente, "
+                                        f"restano circa {migliore_bobina['margine_g']:g} g{costo_testo}.")
+                            else:
+                                st.warning(f"Nessuna bobina {materiale_bobina or ''} registrata contiene i "
+                                           f"{materiale_g:g} g necessari.")
+                        else:
+                            st.caption("Registra una bobina nella scheda Bobine per verificare disponibilità e costo.")
             righe_varianti = []
             for r in opt.get("risultati", []):
                 righe_varianti.append({
@@ -644,6 +667,59 @@ with tab_diario:
                 else:
                     diario.aggiorna(i, {"diagnosi": testo})
                     st.rerun()
+
+# ------------------------------------------------------------------ bobine
+with tab_bobine:
+    st.subheader("Inventario bobine")
+    inventario = bobine.tutte()
+    if inventario:
+        st.dataframe(pd.DataFrame([{
+            "nome": b["nome"], "materiale": b["materiale"], "marca": b.get("marca"),
+            "colore": b.get("colore"), "residuo g": b["residuo_g"],
+            "tara g": b.get("tara_g"), "costo €": b.get("costo_eur"), "stato": b.get("stato"),
+        } for b in inventario]), width="stretch", hide_index=True)
+    else:
+        st.caption("Nessuna bobina registrata.")
+
+    with st.form("aggiungi_bobina", clear_on_submit=True):
+        st.markdown("**Aggiungi una bobina**")
+        b1, b2, b3 = st.columns(3)
+        nome_bobina = b1.text_input("Nome bobina", placeholder="es. PETG nero Elegoo")
+        materiale_bobina = b2.selectbox("Materiale", config.FILAMENTI, key="materiale_bobina")
+        marca_bobina = b3.text_input("Marca")
+        b4, b5, b6 = st.columns(3)
+        colore_bobina = b4.text_input("Colore")
+        peso_bobina = b5.number_input("Peso netto iniziale g", 1.0, 10000.0, 1000.0)
+        residuo_bobina = b6.number_input("Residuo stimato g", 0.0, 10000.0, 1000.0)
+        b7, b8, b9 = st.columns(3)
+        tara_bobina = b7.number_input("Tara bobina vuota g", 0.0, 2000.0, 0.0)
+        costo_bobina = b8.number_input("Costo bobina €", 0.0, 1000.0, 0.0, step=0.5)
+        stato_bobina = b9.selectbox("Stato", ["pronta", "da essiccare", "esaurita"])
+        if st.form_submit_button("Aggiungi bobina", type="primary"):
+            bobine.aggiungi({
+                "nome": nome_bobina, "materiale": materiale_bobina, "marca": marca_bobina,
+                "colore": colore_bobina, "peso_netto_g": peso_bobina, "residuo_g": residuo_bobina,
+                "tara_g": tara_bobina, "costo_eur": costo_bobina, "stato": stato_bobina,
+            })
+            st.rerun()
+
+    if inventario:
+        etichette_bobine = {f"{b['nome']} — {b['residuo_g']:g} g": b["id"] for b in inventario}
+        c_consumo, c_pesata = st.columns(2)
+        with c_consumo.form("consumo_bobina"):
+            st.markdown("**Registra una stampa**")
+            scelta_consumo = st.selectbox("Bobina", list(etichette_bobine), key="bobina_consumo")
+            grammi_consumati = st.number_input("Grammi consumati", 0.0, 10000.0, 0.0, step=1.0)
+            if st.form_submit_button("Sottrai dal residuo"):
+                bobine.consuma(etichette_bobine[scelta_consumo], grammi_consumati)
+                st.rerun()
+        with c_pesata.form("pesata_bobina"):
+            st.markdown("**Aggiorna con una pesata**")
+            scelta_pesata = st.selectbox("Bobina", list(etichette_bobine), key="bobina_pesata")
+            peso_lordo = st.number_input("Peso lordo bobina + filamento g", 0.0, 12000.0, 0.0, step=1.0)
+            if st.form_submit_button("Calcola il residuo dalla tara"):
+                bobine.aggiorna_da_pesata(etichette_bobine[scelta_pesata], peso_lordo)
+                st.rerun()
 
 # ------------------------------------------------------------------ storico
 with tab_storico:

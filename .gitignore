@@ -2,6 +2,7 @@ __pycache__/
 lavori/
 foto/
 diario.jsonl
+bobine.json
 .venv-augura/
 esterni/
 .venv/

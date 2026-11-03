@@ -99,6 +99,10 @@ Il diario può registrare anche temperature, velocità, flow, retrazione ed erro
 **tendenze personali** compaiono solo dopo almeno due osservazioni coerenti per lo stesso materiale:
 sono frequenze e mediane leggibili, non un modello che pretende di prevedere difetti con pochi dati.
 
+La scheda **Bobine** conserva materiale, colore, tara, costo e grammi residui. Il residuo si aggiorna
+sottraendo una stampa oppure inserendo il peso lordo misurato. Per la configurazione consigliata la
+dashboard indica automaticamente se una bobina compatibile basta e stima costo e materiale restante.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
@@ -129,7 +133,8 @@ Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella l
   Ogni analisi si riprende senza ricalcolare niente: dalla scheda **Analisi passate**, ricaricando la
   pagina (il lavoro aperto resta nell'indirizzo, `?lavoro=...`) o caricando di nuovo lo stesso file,
   che viene riconosciuto dall'impronta SHA-256 e propone di riaprire l'analisi salvata.
-- `diario.jsonl` e `foto/`: il diario di stampa
+- `diario.jsonl` e `foto/`: il diario di stampa;
+- `bobine.json`: inventario personale delle bobine, escluso da Git.
 
 ## Licenze
 
