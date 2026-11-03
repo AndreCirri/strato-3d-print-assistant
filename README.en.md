@@ -92,8 +92,10 @@ settings pairs already tried are excluded. Intermediate results can be resumed. 
 normalises time, material, layer and strength indicator with 25% weights each. It is a local search:
 the budget does not guarantee finding the global optimum.
 
-Analysis, comparison, images and 3MF are processed by a separate process: you can move between tabs
-and press **Aggiorna avanzamento** (refresh progress) to read the status. If a process stops,
+Analysis, comparison, images and 3MF are processed by a separate process: you can move between tabs.
+A bar refreshes every two seconds and shows percentage, phase, step counter and elapsed time.
+The percentage refers to the steps completed, not the time left; you can also press
+**Aggiorna avanzamento** (refresh progress). If a process stops,
 **Riprendi la lavorazione** (resume) recovers the checkpoints; only invalid slices are run again.
 Caches check geometry, complete profiles, filament and slicer version. Earlier results without this
 information need a first recomputation. The comparison and the 3MF are invalidated when their inputs
@@ -103,6 +105,10 @@ For the recommended combination you can download a **process profile JSON** impo
 ElegooSlicer and the **STL already rotated and placed on the bed**. A third button uses ElegooSlicer
 to generate a **3MF project** containing the model and configurations. The profile derives from the
 usual one and is exported complete with the variant and support settings used in the real comparison.
+The **Configurazione da esportare** (configuration to export) menu lets you pick any valid measured
+combination, with the recommended one selected at first. JSON, STL, 3MF and the spool check follow the
+manual choice. The STL contains only geometry and orientation: for the same orientation it does not change
+between variants. To also keep layer, walls, infill and filament, use the 3MF project.
 
 If load type and direction are given, the dashboard also compares the component acting normal to the
 layers across orientations. It is a relative indication of delamination risk, with a first suggestion
