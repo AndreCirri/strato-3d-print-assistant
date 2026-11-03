@@ -128,6 +128,24 @@ def secondi(tempo):
     return sum(int(n) * unita[u] for n, u in re.findall(r"(\d+)\s*([dhms])", str(tempo)))
 
 
+def risultato_gcode(percorso, filamento):
+    """Estrae dal G-code tutti i numeri usati dalla dashboard."""
+    numeri = leggi_gcode(percorso)
+    diametro = float(str(filamento.get("filament_diameter", ["1.75"])[0]))
+    densita = float(str(filamento.get("filament_density", ["1.25"])[0]))
+    per_tipo = filamento_per_tipo(percorso, diametro, densita)
+    supporti = sum(v for t, v in per_tipo.items() if t in TIPI_SUPPORTO)
+    brim, avvio = per_tipo.get("Brim", 0.0), per_tipo.get("Custom", 0.0)
+    # "filamento_g" è il totale dichiarato dallo slicer; le voci sotto sono misurate sui movimenti
+    # del G-code e sommano il filamento davvero estruso (il dichiarato conta anche ~retrazioni/spurgo)
+    return {"gcode": str(percorso), **numeri,
+            "tempo_s": secondi(numeri.get("tempo", "")),
+            "pezzo_g": round(sum(per_tipo.values()) - supporti - brim - avvio, 2),
+            "supporti_g": round(supporti, 2), "brim_g": round(brim, 2), "linea_avvio_g": round(avvio, 2),
+            "estruso_g": round(sum(per_tipo.values()), 2),
+            "per_tipo_g": per_tipo}
+
+
 def seziona(stl, macchina, processo, filamento, cartella=None, timeout=600):
     """Seziona un STL (già orientato) e ritorna i numeri del G-code. I profili sono dict completi."""
     cartella = Path(cartella or tempfile.mkdtemp(prefix="seziona_"))
@@ -136,6 +154,9 @@ def seziona(stl, macchina, processo, filamento, cartella=None, timeout=600):
     for nome, prof in (("macchina", macchina), ("processo", processo), ("filamento", filamento)):
         percorsi[nome] = cartella / f"{nome}.json"
         percorsi[nome].write_text(json.dumps(prof, ensure_ascii=False), encoding="utf-8")
+    # Se il profilo è cambiato, un G-code precedente non deve mascherare un nuovo fallimento.
+    for vecchio in cartella.glob("*.gcode"):
+        vecchio.unlink()
     comando = [str(ESEGUIBILE), "--slice", "0", "--arrange", "1",
                "--load-settings", f"{percorsi['macchina']};{percorsi['processo']}",
                "--load-filaments", str(percorsi["filamento"]),
@@ -146,20 +167,26 @@ def seziona(stl, macchina, processo, filamento, cartella=None, timeout=600):
     gcode = sorted(cartella.glob("*.gcode"))
     if not gcode:
         raise RuntimeError(f"nessun G-code prodotto (uscita {r.returncode}), vedi {cartella / 'log.txt'}")
-    numeri = leggi_gcode(gcode[0])
-    diametro = float(str(filamento.get("filament_diameter", ["1.75"])[0]))
-    densita = float(str(filamento.get("filament_density", ["1.25"])[0]))
-    per_tipo = filamento_per_tipo(gcode[0], diametro, densita)
-    supporti = sum(v for t, v in per_tipo.items() if t in TIPI_SUPPORTO)
-    brim, avvio = per_tipo.get("Brim", 0.0), per_tipo.get("Custom", 0.0)
-    # "filamento_g" è il totale dichiarato dallo slicer; le voci sotto sono misurate sui movimenti
-    # del G-code e sommano il filamento davvero estruso (il dichiarato conta anche ~retrazioni/spurgo)
-    return {"gcode": str(gcode[0]), **numeri,
-            "tempo_s": secondi(numeri.get("tempo", "")),
-            "pezzo_g": round(sum(per_tipo.values()) - supporti - brim - avvio, 2),
-            "supporti_g": round(supporti, 2), "brim_g": round(brim, 2), "linea_avvio_g": round(avvio, 2),
-            "estruso_g": round(sum(per_tipo.values()), 2),
-            "per_tipo_g": per_tipo}
+    return risultato_gcode(gcode[0], filamento)
+
+
+def _cache_variante(sotto, impostazioni, filamento):
+    """Riusa un G-code completo solo se il profilo salvato coincide con le impostazioni richieste."""
+    profilo_salvato = sotto / "processo.json"
+    gcode = sorted(sotto.glob("*.gcode"))
+    if not profilo_salvato.is_file() or not gcode:
+        return None
+    try:
+        salvato = json.loads(profilo_salvato.read_text(encoding="utf-8"))
+        if any(str(salvato.get(k)) != str(v) for k, v in impostazioni.items()):
+            return None
+        risultato = risultato_gcode(gcode[0], filamento)
+        if not risultato.get("tempo_s"):
+            return None
+        risultato.pop("gcode", None)
+        return risultato
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def profili(processo, filamento, modifiche_processo=None):
@@ -221,8 +248,11 @@ def seziona_varianti(mesh, orientamenti, cartella, processo, filamento, varianti
         proc.update(config.SUPPORTI_SEZIONAMENTO)
         proc.update(variante["impostazioni"])
         try:
-            r = seziona(stl, macchina, proc, fil, sotto)
-            r.pop("gcode", None)
+            impostazioni = {**config.SUPPORTI_SEZIONAMENTO, **variante["impostazioni"]}
+            r = _cache_variante(sotto, impostazioni, fil)
+            if r is None:
+                r = seziona(stl, macchina, proc, fil, sotto)
+                r.pop("gcode", None)
         except Exception as e:
             r = {"errore": str(e)[:300]}
         risultati.append({"orientamento_id": o["id"], "variante_id": variante["id"], "risultato": r})

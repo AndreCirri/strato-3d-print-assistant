@@ -60,6 +60,32 @@ class OttimizzazioneTest(unittest.TestCase):
         self.assertEqual(opt["raccomandazione"]["orientamento_id"], 4)
         self.assertEqual(opt["raccomandazione"]["variante_id"], "dettaglio")
 
+    def test_robustezza_privilegia_la_variante_con_piu_pareti(self):
+        varianti = [*VARIANTI, {
+            "id": "robusto", "nome": "Robusto", "descrizione": "forte",
+            "impostazioni": {"layer_height": "0.16", "wall_loops": "3", "sparse_infill_density": "25%"},
+        }]
+        extra = [*self.extra,
+                 {"orientamento_id": 4, "variante_id": "robusto", "risultato": risultato(140, 15)},
+                 {"orientamento_id": 2, "variante_id": "robusto", "risultato": risultato(125, 16)}]
+
+        opt = ottimizzazione.costruisci(self.orientamenti, varianti, extra, "robustezza e rigidità", 2)
+
+        self.assertEqual(opt["raccomandazione"]["orientamento_id"], 4)
+        self.assertEqual(opt["raccomandazione"]["variante_id"], "robusto")
+
+    def test_frontiera_esclude_una_configurazione_dominata(self):
+        righe = [
+            {"orientamento_id": 1, "variante_id": "a", "tempo_s": 100, "materiale_g": 10,
+             "layer_height": "0.16", "wall_loops": "3", "sparse_infill_density": "20%"},
+            {"orientamento_id": 2, "variante_id": "b", "tempo_s": 120, "materiale_g": 12,
+             "layer_height": "0.16", "wall_loops": "3", "sparse_infill_density": "20%"},
+        ]
+
+        frontiera = ottimizzazione.frontiera_pareto(righe)
+
+        self.assertEqual(frontiera, [{"orientamento_id": 1, "variante_id": "a"}])
+
     def test_un_errore_resta_visibile_e_non_viene_raccomandato(self):
         extra = list(self.extra)
         extra[-1] = {"orientamento_id": 2, "variante_id": "veloce",

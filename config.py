@@ -49,6 +49,18 @@ VARIANTI_PROCESSO = [
         "descrizione": "strati più alti e meno riempimento per ridurre tempo e materiale",
         "impostazioni": {"layer_height": "0.24", "wall_loops": "2", "sparse_infill_density": "10%"},
     },
+    {
+        "id": "economico",
+        "nome": "Economico",
+        "descrizione": "compromesso orientato al risparmio di materiale",
+        "impostazioni": {"layer_height": "0.20", "wall_loops": "2", "sparse_infill_density": "8%"},
+    },
+    {
+        "id": "robusto",
+        "nome": "Robusto",
+        "descrizione": "tre pareti e più riempimento per aumentare la robustezza attesa",
+        "impostazioni": {"layer_height": "0.16", "wall_loops": "3", "sparse_infill_density": "25%"},
+    },
 ]
 
 UGELLO_MM = 0.4
