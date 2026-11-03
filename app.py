@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 import augura_addon
+import calibrazione
 import classifica
 import config
 import diario
@@ -438,6 +439,21 @@ with tab_analisi:
         with st.expander("Limiti dei controlli automatici"):
             for limite_controllo in controlli_stampa["limiti"]:
                 st.caption(limite_controllo)
+        profilo_usato = dati.get("sezionamento", {}).get("filamento", "")
+        materiale_storico = calibrazione.materiale_da_profilo(profilo_usato, config.FILAMENTI)
+        storico_personale = calibrazione.analizza(diario.tutte(), materiale_storico)
+        dati["calibrazione_personale"] = storico_personale
+        if storico_personale["stampe_considerate"]:
+            st.markdown("**Esperienza personale dal diario**")
+            if storico_personale["problemi_ricorrenti"]:
+                st.dataframe(pd.DataFrame(storico_personale["problemi_ricorrenti"]),
+                             width="stretch", hide_index=True)
+            elif not storico_personale["dati_sufficienti"]:
+                st.caption(f"Una sola stampa annotata per {materiale_storico or 'questo materiale'}: "
+                           "la registro, ma non la tratto ancora come una tendenza.")
+            if storico_personale["compensazione_dimensionale"]:
+                st.info(storico_personale["compensazione_dimensionale"]["indicazione"])
+            st.caption(storico_personale["limite"])
         st.image(str(cartella / "orientamenti.png"))
         for img in immagini_lavoro(cartella, dati)[1:]:
             st.image(str(img))
@@ -574,6 +590,17 @@ with tab_diario:
             impostazioni = st.text_area("Impostazioni usate (quelle cambiate)", placeholder="es. strato 0,16; pareti 4; spaziatura interfaccia 0,2")
             commento = st.text_area("Com'è andata")
             foto = st.file_uploader("Foto (facoltative)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        with st.expander("Parametri per la calibrazione personale"):
+            p1, p2, p3 = st.columns(3)
+            temperatura_ugello = p1.number_input("Temperatura ugello °C (0 = non annotata)", 0, 350, 0)
+            temperatura_piatto = p2.number_input("Temperatura piatto °C (0 = non annotata)", 0, 150, 0)
+            velocita_usata = p3.number_input("Velocità principale mm/s (0 = non annotata)", 0, 1000, 0)
+            p4, p5, p6 = st.columns(3)
+            flow_usato = p4.number_input("Flow % (0 = non annotato)", 0.0, 150.0, 0.0, step=0.5)
+            retrazione_usata = p5.number_input("Retrazione mm (0 = non annotata)", 0.0, 20.0, 0.0, step=0.1)
+            errore_dimensionale = p6.number_input(
+                "Errore dimensionale mm (+ grande, − piccolo)", -10.0, 10.0, 0.0, step=0.05,
+            )
         if st.form_submit_button("Salva nel diario", type="primary"):
             percorsi = []
             for f in foto or []:
@@ -582,13 +609,25 @@ with tab_diario:
                 percorsi.append(str(p))
             diario.aggiungi({"pezzo": pezzo, "analisi": None if lavoro == "nessuna" else lavoro, "materiale": materiale,
                              "esito": esito, "problemi": problemi, "impostazioni": impostazioni,
-                             "commento": commento, "foto": percorsi})
+                             "commento": commento, "foto": percorsi,
+                             "temperatura_ugello_c": temperatura_ugello,
+                             "temperatura_piatto_c": temperatura_piatto,
+                             "velocita_mm_s": velocita_usata, "flow_pct": flow_usato,
+                             "retrazione_mm": retrazione_usata,
+                             "errore_dimensionale_mm": errore_dimensionale})
             st.success("Salvato.")
 
     st.subheader("Stampe annotate")
     voci = diario.tutte()
     if not voci:
         st.caption("Ancora nessuna stampa nel diario.")
+    else:
+        st.markdown("**Tendenze registrate**")
+        riepilogo_diario = calibrazione.analizza(voci)
+        if riepilogo_diario["problemi_ricorrenti"]:
+            st.dataframe(pd.DataFrame(riepilogo_diario["problemi_ricorrenti"]), width="stretch", hide_index=True)
+        else:
+            st.caption("Nessun problema compare ancora almeno due volte.")
     for i in reversed(range(len(voci))):
         v = voci[i]
         with st.expander(f"{v['data']} — {v.get('pezzo') or 'senza nome'} — {v['esito']}"):

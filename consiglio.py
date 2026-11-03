@@ -37,6 +37,8 @@ se il vincitore è diverso da quello geometrico.
 euristico: non presentare l'indice come tensione, fattore di sicurezza o carico di rottura.
 - Se è presente "stampabilita_avanzata", tratta separatamente errori, avvisi e limiti. Non dichiarare \
 che supporti intrappolati o collisioni siano certi quando il controllo chiede conferma nell'anteprima.
+- Se è presente "calibrazione_personale", usa solo i problemi ricorrenti e le mediane registrate. Una \
+singola osservazione non è una tendenza e non va presentata come previsione.
 - Se è presente "ottimizzazione_processo", confronta i risultati reali di Dettaglio, Bilanciato e Veloce. \
 La "raccomandazione" segue la priorità dichiarata dall'utente: usala come punto di partenza, cita tempo e \
 materiale misurati e segnalalo chiaramente se per ragioni tecniche proponi una combinazione diversa.

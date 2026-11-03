@@ -95,6 +95,10 @@ I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problem
 due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di
 supporti. I rischi di collisione o supporti intrappolati restano esplicitamente da confermare nell'anteprima.
 
+Il diario può registrare anche temperature, velocità, flow, retrazione ed errore dimensionale. Le
+**tendenze personali** compaiono solo dopo almeno due osservazioni coerenti per lo stesso materiale:
+sono frequenze e mediane leggibili, non un modello che pretende di prevedere difetti con pochi dati.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
