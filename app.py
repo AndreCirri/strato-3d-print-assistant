@@ -19,6 +19,7 @@ import ottimizzazione
 import orienta_slicer
 import resistenza
 import slicer_cli
+import stampabilita
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 
 st.set_page_config(page_title="Assistente stampa 3D", page_icon="🧩", layout="wide")
@@ -422,6 +423,21 @@ with tab_analisi:
             st.caption(meccanica["limite"])
         else:
             dati.pop("analisi_meccanica", None)
+        controlli_stampa = stampabilita.valuta(dati, config.VOLUME_STAMPA, config.UGELLO_MM)
+        dati["stampabilita_avanzata"] = controlli_stampa
+        st.markdown("**Controlli avanzati di stampabilità**")
+        if controlli_stampa["controlli"]:
+            icone = {"errore": "🔴", "avviso": "🟠", "info": "🔵"}
+            tabella_controlli = pd.DataFrame([{
+                "livello": icone[r["gravita"]], "controllo": r["controllo"],
+                "problema": r["messaggio"], "cosa fare": r["azione"],
+            } for r in controlli_stampa["controlli"]])
+            st.dataframe(tabella_controlli, width="stretch", hide_index=True)
+        else:
+            st.success("Nessun problema rilevato dai controlli disponibili.")
+        with st.expander("Limiti dei controlli automatici"):
+            for limite_controllo in controlli_stampa["limiti"]:
+                st.caption(limite_controllo)
         st.image(str(cartella / "orientamenti.png"))
         for img in immagini_lavoro(cartella, dati)[1:]:
             st.image(str(img))

@@ -91,6 +91,10 @@ Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la
 normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,
 con un primo suggerimento sul numero di pareti; non è una simulazione FEM e non stima il carico di rottura.
 
+I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problemi della mesh, pareti sotto
+due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di
+supporti. I rischi di collisione o supporti intrappolati restano esplicitamente da confermare nell'anteprima.
+
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
