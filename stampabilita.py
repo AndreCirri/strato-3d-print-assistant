@@ -60,6 +60,12 @@ def valuta(dati, volume_stampa=(256, 256, 256), ugello_mm=0.4):
             _aggiungi(risultati, "supporti_sul_pezzo", "avviso", "Rimozione dei supporti",
                       f"Circa {supporto_pezzo:g} mm² di sporgenze richiedono supporti appoggiati sul pezzo.",
                       "Controlla accessibilità e finitura delle superfici di contatto.", oid)
+        supporto_cavita = float(migliore.get("supporti_in_cavita_area_mm2") or 0)
+        if supporto_cavita > 0:
+            _aggiungi(risultati, "supporti_in_cavita", "avviso", "Supporti dentro una cavità",
+                      f"Circa {supporto_cavita:g} mm² di sporgenze hanno supporti dal piatto circondati dal pezzo.",
+                      "Dopo la stampa si tolgono solo dall'apertura sul piatto: verifica che sia abbastanza "
+                      "larga o scegli un orientamento con la cavità aperta verso l'alto.", oid)
         supporti_alti = float(migliore.get("altezza_max_supporti_mm") or 0)
         if supporti_alti > 50:
             _aggiungi(risultati, "supporti_alti", "avviso", "Supporti alti",

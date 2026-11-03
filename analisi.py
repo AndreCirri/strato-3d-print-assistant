@@ -141,6 +141,51 @@ def _superficie_esposta(triangolo, normale, corpi):
     return min(1.0, esposta.area / faccia.area), triangolo[0] + base @ punto
 
 
+# Supporti dal piatto dentro una cavità: a qualche quota la colonna è circondata dal pezzo in
+# tutte le direzioni orizzontali (tazza capovolta, campana). Il piatto chiude l'apertura in
+# stampa; dopo si tolgono solo passando da lì, quindi sono difficili da rimuovere.
+DIREZIONI_CAVITA = 16
+QUOTE_CAVITA = (0.25, 0.5, 0.75)   # frazioni dell'altezza della colonna di supporto
+MAX_COLONNE_CAVITA = 600          # colonne verificate con i raggi; le altre prendono l'esito più vicino
+
+
+def _circondate(mesh, punti, direzioni):
+    """Quali punti hanno il pezzo attorno in tutte le direzioni date."""
+    colpiti = mesh.ray.intersects_any(np.repeat(punti, len(direzioni), axis=0), np.tile(direzioni, (len(punti), 1)))
+    return colpiti.reshape(len(punti), len(direzioni)).all(axis=1)
+
+
+def _colonne_in_cavita(mesh, punti, altezze):
+    """Per ogni colonna (punto della sporgenza, altezza sul piatto): è circondata dal pezzo?"""
+    esito = np.zeros(len(punti), bool)
+    valide = np.where(altezze > 0.2)[0]
+    if not len(valide):
+        return esito
+    scelte = valide
+    if len(valide) > MAX_COLONNE_CAVITA:
+        scelte = np.sort(np.random.default_rng(0).choice(valide, MAX_COLONNE_CAVITA, replace=False))
+    angoli = np.linspace(0, 2 * math.pi, DIREZIONI_CAVITA, endpoint=False)
+    direzioni = np.column_stack((np.cos(angoli), np.sin(angoli), np.zeros(DIREZIONI_CAVITA)))
+    principali = np.arange(DIREZIONI_CAVITA) % (DIREZIONI_CAVITA // 4) == 0
+    circondate = np.zeros(len(scelte), bool)
+    for frazione in QUOTE_CAVITA:
+        da_provare = np.where(~circondate)[0]
+        quote = punti[scelte[da_provare]].copy()
+        quote[:, 2] -= frazione * altezze[scelte[da_provare]]
+        # prima le quattro direzioni principali: le colonne all'aperto escono quasi sempre qui
+        chiuse = _circondate(mesh, quote, direzioni[principali])
+        if chiuse.any():
+            chiuse[chiuse] = _circondate(mesh, quote[chiuse], direzioni[~principali])
+        circondate[da_provare[chiuse]] = True
+    esito[scelte] = circondate
+    if len(scelte) < len(valide):
+        from scipy.spatial import cKDTree
+        resto = np.setdiff1d(valide, scelte)
+        _, vicino = cKDTree(punti[scelte, :2]).query(punti[resto, :2])
+        esito[resto] = circondate[vicino]
+    return esito
+
+
 def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None, con_frazioni=False):
     """Per un pezzo già orientato (piatto a z=zmin): quali facce chiedono supporti e da dove."""
     rng = rng or np.random.default_rng(0)
@@ -160,7 +205,8 @@ def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None, con_frazioni=False)
                 mesh.triangles[i], mesh.face_normals[i], corpi,
             )
         sporgenza &= frazioni > 0
-    tipo = np.zeros(len(mesh.faces), dtype=np.int8)       # 0 ok, 1 supporto dal piatto, 2 supporto sul pezzo
+    # 0 ok, 1 supporto dal piatto, 2 supporto sul pezzo, 3 supporto dal piatto dentro una cavità
+    tipo = np.zeros(len(mesh.faces), dtype=np.int8)
     distanza = np.zeros(len(mesh.faces))
     idx = np.where(sporgenza)[0]
     if len(idx):
@@ -172,7 +218,8 @@ def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None, con_frazioni=False)
         if len(iray):                      # nessun raggio a segno: tutte le sporgenze vanno al piatto
             colpito[iray] = True
             dist[iray] = orig[iray, 2] - np.asarray(loc).reshape(-1, 3)[:, 2]
-        tipo[idx] = np.where(colpito, 2, 1)
+        in_cavita = ~colpito & _colonne_in_cavita(mesh, orig, dist)
+        tipo[idx] = np.where(colpito, 2, np.where(in_cavita, 3, 1))
         distanza[idx] = dist
     if con_frazioni:
         return tipo, distanza, appoggio, frazioni
@@ -213,7 +260,7 @@ def consiglio_brim(contatto, altezza, ribalta):
 def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
     tipo, dist, appoggio, frazioni = classifica_facce(mesh, soglia, con_frazioni=True)
     area_xy = mesh.area_faces * np.abs(mesh.face_normals[:, 2]) * frazioni
-    dal_piatto, sul_pezzo = tipo == 1, tipo == 2
+    dal_piatto, sul_pezzo, in_cavita = (tipo == 1) | (tipo == 3), tipo == 2, tipo == 3
     contatto = float(mesh.area_faces[appoggio].sum())
     h = float(mesh.extents[2])
     rib = ribaltamento(mesh)
@@ -226,6 +273,8 @@ def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
         "area_appoggio_mm2": round(contatto, 1),
         "supporti_dal_piatto_area_mm2": round(float(area_xy[dal_piatto].sum()), 1),
         "supporti_sul_pezzo_area_mm2": round(float(area_xy[sul_pezzo].sum()), 1),
+        # già comprese in quelle dal piatto: lo slicer le costruisce, ma restano dentro il pezzo
+        "supporti_in_cavita_area_mm2": round(float(area_xy[in_cavita].sum()), 1),
         "volume_supporti_stimato_mm3": round(float((area_xy * dist)[tipo > 0].sum()), 0),
         "altezza_max_supporti_mm": round(float(dist[tipo > 0].max()) if (tipo > 0).any() else 0.0, 1),
         "rapporto_altezza_appoggio": round(h / math.sqrt(contatto), 2) if contatto > 0 else None,
@@ -237,6 +286,8 @@ APPOGGIO_MINIMO = 10.0    # mm2: sotto questo il pezzo poggia su punte o spigoli
 # sua ombra sul piatto: la penalità vale quindi come sostenere tutto l'ingombro, scalata col pezzo.
 PESO_INSTABILE = 1.0      # mm2 di penalità per mm2 di ingombro, per ciascun problema
 PENALITA_MINIMA = 200.0   # per pezzi minuscoli, dove l'ingombro sarebbe trascurabile
+PESO_SUPPORTI_SUL_PEZZO = 3.0
+PESO_SUPPORTI_IN_CAVITA = 3.0   # come quelli sul pezzo: si tolgono a fatica e segnano l'interno
 
 
 def penalita_stabilita(o):
@@ -254,6 +305,9 @@ def avvisi_orientamento(v):
         avvisi.append("appoggia su punte o spigoli: senza brim o supporti si stacca")
     if v["supporti_sul_pezzo_area_mm2"] > 0:
         avvisi.append("alcune sporgenze poggerebbero sul pezzo stesso (supporti difficili da togliere)")
+    if v.get("supporti_in_cavita_area_mm2", 0) > 0:
+        avvisi.append("alcuni supporti dal piatto restano dentro una cavità: si tolgono solo "
+                      "passando dall'apertura sul piatto")
     if v["si_ribalta"]:
         avvisi.append("si ribalta: il baricentro è fuori dall'appoggio, lo reggono solo i supporti")
     if v["brim_consigliato"]:
@@ -263,7 +317,10 @@ def avvisi_orientamento(v):
 
 def completa_punteggio_geometrico(v):
     v["penalita_stabilita"] = round(penalita_stabilita(v), 1)
-    v["punteggio"] = round(v["supporti_dal_piatto_area_mm2"] + 3 * v["supporti_sul_pezzo_area_mm2"]
+    # le aree in cavità sono già in quelle dal piatto: si aggiunge solo la differenza di peso
+    v["punteggio"] = round(v["supporti_dal_piatto_area_mm2"]
+                           + PESO_SUPPORTI_SUL_PEZZO * v["supporti_sul_pezzo_area_mm2"]
+                           + (PESO_SUPPORTI_IN_CAVITA - 1) * v.get("supporti_in_cavita_area_mm2", 0)
                            + 0.02 * v["volume_supporti_stimato_mm3"] + v["penalita_stabilita"], 1)
     v["punteggio_geometrico"] = v["punteggio"]
     v["avvisi"] = avvisi_orientamento(v)
@@ -345,7 +402,7 @@ def aggiorna_geometria(mesh, dati):
 
 
 CAMPI_CONFRONTO = ["altezza_mm", "area_appoggio_mm2", "supporti_dal_piatto_area_mm2", "supporti_sul_pezzo_area_mm2",
-                   "volume_supporti_stimato_mm3", "si_ribalta", "brim_consigliato", "punteggio", "costo_slicer"]
+                   "supporti_in_cavita_area_mm2", "volume_supporti_stimato_mm3", "si_ribalta", "brim_consigliato", "punteggio", "costo_slicer"]
 
 
 def confronto_slicer(orientamenti, scelte):

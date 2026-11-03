@@ -24,11 +24,15 @@ si caricano solo alla prima analisi o alla prima domanda a Claude.
 1. **Analisi geometrica** (`analisi.py`, nessuna AI): dimensioni, volume, spessori delle pareti,
    e per ogni orientamento candidato (quello del file più le pose stabili) l'area di appoggio
    e le superfici che chiedono supporti, distinguendo quelli che partono dal piatto da quelli
-   che poggerebbero sul pezzo.
+   che poggerebbero sul pezzo. Tra quelli dal piatto riconosce quelli **dentro una cavità**: a
+   qualche quota la colonna di supporto ha il pezzo attorno in tutte le 16 direzioni orizzontali
+   (tazza capovolta, scatola aperta sotto). Lo slicer li costruisce, ma dopo la stampa si tolgono
+   solo passando dall'apertura sul piatto. Un tunnel aperto ai lati non conta come cavità; una
+   fessura laterale più stretta dei raggi può sfuggire.
    Per ogni orientamento controlla anche se il pezzo **si ribalta** (baricentro fuori
    dall'impronta sul piatto) e se serve il **brim**.
    **Punteggio** (più basso = meglio): area dei supporti dal piatto + 3 × quella dei supporti
-   sul pezzo + 0,02 × volume dei supporti + penalità di stabilità. Se il pezzo tocca il piatto
+   sul pezzo + 2 × quella in cavità (che pesa così 3 in tutto) + 0,02 × volume dei supporti + penalità di stabilità. Se il pezzo tocca il piatto
    solo con spigoli (meno di 10 mm²) o si ribalta, ogni problema aggiunge quanto il suo
    **ingombro sul piatto** (minimo 200): un pezzo instabile va sostenuto da brim o supporti per
    tutta la sua ombra. Pesi e soglie sono in cima ad `analisi.py`; la soglia dei supporti è in
@@ -40,7 +44,7 @@ si caricano solo alla prima analisi o alla prima domanda a Claude.
    candidati, costi con scarto mediano 0,1%, stessa scelta. La pagina mostra chi sceglie cosa:
    nostra classifica, slicer e Claude.
 2. **Immagini** (`render.py`): gli orientamenti con le sporgenze colorate
-   (rosso = supporto dal piatto, arancione = supporto sul pezzo).
+   (rosso = supporto dal piatto, viola = dal piatto dentro una cavità, arancione = supporto sul pezzo).
 3. **Consiglio** (`consiglio.py`): Claude riceve numeri, immagini, stampante, scopo del pezzo
    e diario, e risponde con orientamento, materiale, impostazioni con il perché, rischi,
    un concetto da imparare e un esperimento.
@@ -70,7 +74,8 @@ Il profilo filamento si sceglie nella barra laterale. Un orientamento si seziona
 
 Dopo il sezionamento la classifica viene ricalcolata in **grammi equivalenti di supporto**: grammi
 reali del G-code, più una stima delle sporgenze che il profilo "solo dal piatto" lascia senza supporto
-(peso triplo), il 25% del brim e una penalità per gli orientamenti instabili. La conversione usata per
+(peso triplo), il doppio della stima per i supporti in cavità (sono già nei grammi reali: si aggiunge la
+difficoltà di toglierli), il 25% del brim e una penalità per gli orientamenti instabili. La conversione usata per
 le sole superfici non servite è 5 g ogni 1.000 mm², mediana dei lavori già sezionati. Il punteggio
 geometrico resta disponibile e viene usato come fallback se lo slicer manca o fallisce.
 
@@ -221,7 +226,3 @@ codice sorgente disponibile per chi le usa.
 
 `orienta_slicer.py` è una traduzione in Python di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
 anch'esso rilasciato sotto AGPL-3.0; i file originali sono indicati nell'intestazione del modulo.
-
-## Da fare
-
-- Riconoscere i supporti dentro le cavità (oggi risultano "dal piatto" se la cavità è aperta in basso).

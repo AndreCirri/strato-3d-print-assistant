@@ -9,7 +9,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from analisi import classifica_facce
 
 FACCE_MAX = 12000                         # oltre si alleggerisce la mesh solo per disegnarla
-COLORI = {0: (0.80, 0.82, 0.86), 1: (0.86, 0.22, 0.20), 2: (0.98, 0.62, 0.10)}
+COLORI = {0: (0.80, 0.82, 0.86), 1: (0.86, 0.22, 0.20), 2: (0.98, 0.62, 0.10), 3: (0.58, 0.30, 0.72)}
 LUCE = np.array([0.35, -0.45, 0.82]) / np.linalg.norm([0.35, -0.45, 0.82])
 
 
@@ -73,7 +73,7 @@ def griglia_orientamenti(mesh, orientamenti, percorso):
         ax = fig.add_subplot(righe, col, i + 1, projection="3d")
         m = _alleggerisci(orienta(mesh, o["trasformazione"]))
         _disegna(ax, m, 22, -55, f"{o['id']}. {o['origine']} - h {o['altezza_mm']} mm")
-    fig.suptitle("Orientamenti candidati (rosso: supporto dal piatto, arancione: supporto sul pezzo)", fontsize=11)
+    fig.suptitle("Orientamenti candidati (rosso: supporto dal piatto, viola: dal piatto in una cavità, arancione: sul pezzo)", fontsize=11)
     fig.tight_layout()
     fig.savefig(percorso, dpi=90)
     plt.close(fig)

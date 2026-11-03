@@ -24,11 +24,15 @@ are loaded only on the first analysis or the first question to Claude.
 1. **Geometric analysis** (`analisi.py`, no AI): dimensions, volume, wall thickness, and for each
    candidate orientation (the one in the file plus the stable poses) the bed contact area and the
    surfaces that need supports, distinguishing supports that start from the bed from those that
-   would rest on the part.
+   would rest on the part. Among supports from the bed it recognises those **inside a cavity**: at
+   some height the support column has the part around it in all 16 horizontal directions (an
+   upside-down cup, a box open at the bottom). The slicer builds them, but after printing they can
+   only be removed through the opening on the bed. A tunnel open at the sides does not count as a
+   cavity; a side slit narrower than the rays can be missed.
    For each orientation it also checks whether the part **tips over** (centre of mass outside the
    footprint on the bed) and whether a **brim** is needed.
    **Score** (lower = better): area of supports from the bed + 3 × area of supports on the part
-   + 0.02 × support volume + stability penalty. If the part touches the bed only with edges (less
+   + 2 × area inside cavities (so it weighs 3 in total) + 0.02 × support volume + stability penalty. If the part touches the bed only with edges (less
    than 10 mm²) or tips over, each problem adds the part's **footprint on the bed** (minimum 200):
    an unstable part has to be held by brim or supports over its whole shadow. Weights and thresholds
    are at the top of `analisi.py`; the support threshold is in `config.py` (`SOGLIA_SUPPORTI`), the
@@ -40,7 +44,7 @@ are loaded only on the first analysis or the first question to Claude.
    with a median deviation of 0.1%, same choice. The page shows who picks what: our ranking, the
    slicer and Claude.
 2. **Images** (`render.py`): the orientations with overhangs coloured
-   (red = support from the bed, orange = support on the part).
+   (red = support from the bed, purple = from the bed inside a cavity, orange = support on the part).
 3. **Advice** (`consiglio.py`): Claude receives the numbers, the images, the printer, the purpose of
    the part and the journal, and answers with orientation, material, settings with their reasons,
    risks, a concept to learn and an experiment.
@@ -70,7 +74,8 @@ The filament profile is chosen in the sidebar. One orientation is sliced in abou
 
 After slicing, the ranking is recomputed in **equivalent grams of support**: real grams from the
 G-code, plus an estimate of the overhangs that the "bed only" profile leaves unsupported (triple
-weight), 25% of the brim and a penalty for unstable orientations. The conversion used for unserved
+weight), twice the estimate for supports inside cavities (already in the real grams: only the difficulty
+of removing them is added), 25% of the brim and a penalty for unstable orientations. The conversion used for unserved
 surfaces alone is 5 g per 1,000 mm², the median of the jobs already sliced. The geometric score is
 still available and is used as a fallback if the slicer is missing or fails.
 
@@ -223,7 +228,3 @@ available to their users.
 
 `orienta_slicer.py` is a Python translation of code from [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
 also released under AGPL-3.0; the original files are listed in the module header.
-
-## To do
-
-- Recognise supports inside cavities (today they count as "from the bed" if the cavity is open at the bottom).

@@ -166,6 +166,7 @@ def tabella_confronto(dati, cartella):
                       "appoggio mm²": o.get("area_appoggio_mm2"),
                       "supporti dal piatto mm²": o.get("supporti_dal_piatto_area_mm2"),
                       "supporti sul pezzo mm²": o.get("supporti_sul_pezzo_area_mm2"),
+                      "di cui in cavità mm²": o.get("supporti_in_cavita_area_mm2"),
                       "si ribalta": o.get("si_ribalta"), "brim": o.get("brim_consigliato"),
                       "supporti g (reali)": (o.get("slicer") or {}).get("supporti_g"),
                       "tempo (reale)": (o.get("slicer") or {}).get("tempo"),

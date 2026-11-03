@@ -31,7 +31,7 @@ valgono più delle stime geometriche, che non vedono per esempio i supporti che 
 spigoli e punte. Quando stime e sezionamento non concordano, segui il sezionamento e dillo.
 - Se "classifica.metodo" è "sezionamento_reale", l'ordine degli orientamenti e "punteggio_reale" usano \
 i grammi del G-code. "supporti_sul_pezzo_stimati_g" copre invece le sporgenze che il profilo solo dal \
-piatto non serve; "punteggio_geometrico" resta come confronto. Preferisci la classifica reale, ma spiega \
+piatto non serve; "supporti_in_cavita_area_mm2" e "supporti_in_cavita_stimati_g" indicano i supporti dal piatto circondati dal pezzo (già nei grammi reali, penalizzati perché difficili da togliere: escono solo dall'apertura sul piatto); "punteggio_geometrico" resta come confronto. Preferisci la classifica reale, ma spiega \
 se il vincitore è diverso da quello geometrico.
 - Se è presente "analisi_meccanica", usala per discutere la direzione degli strati. È un confronto \
 euristico: non presentare l'indice come tensione, fattore di sicurezza o carico di rottura.

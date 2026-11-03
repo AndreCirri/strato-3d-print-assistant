@@ -8,6 +8,9 @@ appoggiato sul pezzo: per quelle resta necessaria la stima geometrica.
 GRAMMI_PER_1000_MM2 = 5.0
 GRAMMI_PER_MM2 = GRAMMI_PER_1000_MM2 / 1000
 PESO_SUPPORTI_SUL_PEZZO = 3.0
+# I supporti dal piatto dentro una cavità sono già nei grammi reali: si aggiunge solo
+# la difficoltà di rimuoverli, come per quelli sul pezzo.
+PESO_SUPPORTI_IN_CAVITA = 3.0
 PESO_BRIM = 0.25
 from validazione import numero as _numero, risultato_valido
 
@@ -22,12 +25,13 @@ def calcola_punteggio_reale(orientamento):
     slicer = orientamento.get("slicer") or {}
     supporti_g = slicer.get("supporti_g")
     if not risultato_valido(slicer):
-        for campo in ("supporti_sul_pezzo_stimati_g", "supporti_equivalenti_g",
+        for campo in ("supporti_sul_pezzo_stimati_g", "supporti_in_cavita_stimati_g", "supporti_equivalenti_g",
                       "penalita_stabilita_reale_g", "punteggio_reale"):
             orientamento.pop(campo, None)
         return False
 
     area_sul_pezzo = max(0.0, float(orientamento.get("supporti_sul_pezzo_area_mm2") or 0))
+    area_in_cavita = max(0.0, float(orientamento.get("supporti_in_cavita_area_mm2") or 0))
     brim_g = max(0.0, float(slicer.get("brim_g") or 0))
     penalita_geometrica = max(0.0, float(orientamento.get("penalita_stabilita") or 0))
 
@@ -35,11 +39,14 @@ def calcola_punteggio_reale(orientamento):
     # non sono comprese nei grammi reali perché il profilo crea supporti solo dal piatto.
     supporti_sul_pezzo_g = area_sul_pezzo * GRAMMI_PER_MM2
     penalita_stabilita_g = penalita_geometrica * GRAMMI_PER_MM2
-    supporti_equivalenti_g = float(supporti_g) + PESO_SUPPORTI_SUL_PEZZO * supporti_sul_pezzo_g
+    supporti_in_cavita_g = area_in_cavita * GRAMMI_PER_MM2
+    supporti_equivalenti_g = (float(supporti_g) + PESO_SUPPORTI_SUL_PEZZO * supporti_sul_pezzo_g
+                              + (PESO_SUPPORTI_IN_CAVITA - 1) * supporti_in_cavita_g)
     totale = supporti_equivalenti_g + PESO_BRIM * brim_g + penalita_stabilita_g
 
     orientamento.update({
         "supporti_sul_pezzo_stimati_g": round(supporti_sul_pezzo_g, 2),
+        "supporti_in_cavita_stimati_g": round(supporti_in_cavita_g, 2),
         "supporti_equivalenti_g": round(supporti_equivalenti_g, 2),
         "penalita_stabilita_reale_g": round(penalita_stabilita_g, 2),
         "punteggio_reale": round(totale, 2),
@@ -57,7 +64,7 @@ def _aggiorna_confronto_slicer(dati):
     per_id = {o.get("id"): o for o in orientamenti}
     campi = [
         "altezza_mm", "area_appoggio_mm2", "supporti_dal_piatto_area_mm2",
-        "supporti_sul_pezzo_area_mm2", "si_ribalta", "brim_consigliato",
+        "supporti_sul_pezzo_area_mm2", "supporti_in_cavita_area_mm2", "si_ribalta", "brim_consigliato",
         "punteggio_geometrico", "punteggio_reale", "costo_slicer",
     ]
     for scelta in confronto.get("scelte", []):

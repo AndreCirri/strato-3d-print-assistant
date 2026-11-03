@@ -37,6 +37,15 @@ class ClassificaRealeTest(unittest.TestCase):
         self.assertEqual(penalizzato["supporti_sul_pezzo_stimati_g"], 5)
         self.assertEqual(penalizzato["punteggio_reale"], 15)
 
+    def test_supporti_in_cavita_aggiungono_solo_la_difficolta(self):
+        o = orientamento(1, 10, 2)
+        o["supporti_in_cavita_area_mm2"] = 1000
+        dati = {"orientamenti": [o]}
+        classifica.applica(dati)
+        o = dati["orientamenti"][0]
+        self.assertEqual(o["supporti_in_cavita_stimati_g"], 5)
+        self.assertEqual(o["punteggio_reale"], 12)
+
     def test_brim_e_stabilita_hanno_peso_esplicito(self):
         dati = {"orientamenti": [orientamento(1, 10, 1, brim_g=4, penalita=200)]}
         classifica.applica(dati)

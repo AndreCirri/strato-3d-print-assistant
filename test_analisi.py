@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import trimesh
 
-from analisi import classifica_facce, valuta_orientamento, unisci_solidi, misure_globali
+from analisi import (classifica_facce, completa_punteggio_geometrico, misure_globali, unisci_solidi,
+                     valuta_orientamento)
 
 
 def scatola(dimensioni, centro_z):
@@ -70,6 +71,35 @@ class ClassificaFacceTest(unittest.TestCase):
         tipo, _, _ = classifica_facce(mesh)
 
         self.assertTrue(np.any(tipo == 2))
+
+    def test_supporti_dentro_una_tazza_capovolta_sono_in_cavita(self):
+        tazza = trimesh.boolean.difference([scatola([20, 20, 15], 7.5), scatola([16, 16, 13], 6.5)],
+                                           engine='manifold')
+
+        esito = valuta_orientamento(tazza)
+
+        # soffitto interno 16 × 16: dal piatto, ma circondato dalle pareti
+        self.assertAlmostEqual(esito['supporti_in_cavita_area_mm2'], 256, places=0)
+        self.assertAlmostEqual(esito['supporti_dal_piatto_area_mm2'], 256, places=0)
+        self.assertTrue(any('cavità' in a for a in completa_punteggio_geometrico(esito)['avvisi']))
+
+    def test_supporti_sotto_un_tunnel_aperto_ai_lati_non_sono_in_cavita(self):
+        ponte = trimesh.boolean.difference([scatola([20, 20, 10], 5), scatola([24, 8, 12], 0)],
+                                           engine='manifold')
+
+        esito = valuta_orientamento(ponte)
+
+        self.assertGreater(esito['supporti_dal_piatto_area_mm2'], 0)
+        self.assertEqual(esito['supporti_in_cavita_area_mm2'], 0)
+
+    def test_tazza_capovolta_pesa_piu_della_stessa_area_libera(self):
+        tazza = trimesh.boolean.difference([scatola([20, 20, 15], 7.5), scatola([16, 16, 13], 6.5)],
+                                           engine='manifold')
+        ponte = trimesh.boolean.difference([scatola([20, 20, 15], 7.5), scatola([24, 16, 26], 0)],
+                                           engine='manifold')
+        in_cavita = completa_punteggio_geometrico(valuta_orientamento(tazza))
+        aperto = completa_punteggio_geometrico(valuta_orientamento(ponte))
+        self.assertGreater(in_cavita['punteggio'], aperto['punteggio'])
 
 
 if __name__ == "__main__":
