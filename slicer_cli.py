@@ -194,6 +194,32 @@ def profili(processo, filamento, modifiche_processo=None):
     return (profilo(config.PROFILO_STAMPANTE), profilo(processo, modifiche_processo), profilo(filamento))
 
 
+def esporta_3mf(stl, destinazione, processo, filamento, modifiche_processo=None, timeout=600):
+    """Crea con ElegooSlicer un progetto 3MF con modello orientato e profili completi."""
+    stl, destinazione = Path(stl).resolve(), Path(destinazione).resolve()
+    destinazione.parent.mkdir(parents=True, exist_ok=True)
+    if destinazione.exists():
+        destinazione.unlink()
+    macchina, proc, fil = profili(processo, filamento, modifiche_processo)
+    with tempfile.TemporaryDirectory(prefix="profilo_3mf_") as temporanea:
+        temporanea = Path(temporanea)
+        percorsi = {}
+        for nome, prof in (("macchina", macchina), ("processo", proc), ("filamento", fil)):
+            percorsi[nome] = temporanea / f"{nome}.json"
+            percorsi[nome].write_text(json.dumps(prof, ensure_ascii=False), encoding="utf-8")
+        comando = [str(ESEGUIBILE), "--slice", "0",
+                   "--load-settings", f"{percorsi['macchina']};{percorsi['processo']}",
+                   "--load-filaments", str(percorsi["filamento"]),
+                   "--outputdir", str(destinazione.parent),
+                   "--export-3mf", destinazione.name, str(stl)]
+        esito = subprocess.run(comando, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=timeout, cwd=str(destinazione.parent))
+    if not destinazione.is_file() or destinazione.stat().st_size == 0:
+        dettaglio = ((esito.stdout or "") + "\n" + (esito.stderr or "")).strip()[-500:]
+        raise RuntimeError(f"progetto 3MF non prodotto (uscita {esito.returncode}): {dettaglio}")
+    return destinazione
+
+
 def seziona_orientamenti(mesh, orientamenti, cartella, processo, filamento, modifiche_processo=None,
                          avanzamento=None):
     """Seziona ogni orientamento candidato (STL già ruotato e appoggiato sul piatto).

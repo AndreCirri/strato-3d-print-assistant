@@ -86,8 +86,9 @@ sono misurati; superficie e robustezza sono indicatori dichiarati basati su laye
 Le analisi precedenti possono aggiungere Economico e Robusto riusando i sezionamenti già presenti.
 
 Per la combinazione consigliata si possono scaricare un **profilo di processo JSON** importabile in
-ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Il profilo deriva da quello abituale ed
-è esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
+ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Un terzo pulsante genera con ElegooSlicer
+un **progetto 3MF** che contiene modello e configurazioni. Il profilo deriva da quello abituale ed è
+esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
 
 Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la componente che agisce
 normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,
@@ -146,5 +147,4 @@ programma che lo include) va distribuito con una licenza compatibile.
 
 ## Da fare
 
-- Esportare un progetto 3MF completo con modello, profilo e filamento.
 - Riconoscere i supporti dentro le cavità (oggi risultano "dal piatto" se la cavità è aperta in basso).

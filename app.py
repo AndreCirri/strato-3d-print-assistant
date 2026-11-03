@@ -529,7 +529,7 @@ with tab_analisi:
                         nome_profilo, base, variante["impostazioni"], supporti,
                     )
                     nome_base = nome_file_sicuro(f"{pezzo}_{rac['variante_id']}")
-                    c_profilo, c_stl = st.columns(2)
+                    c_profilo, c_stl, c_3mf = st.columns(3)
                     c_profilo.download_button(
                         "Scarica profilo ElegooSlicer",
                         json.dumps(profilo, ensure_ascii=False, indent=2),
@@ -544,8 +544,28 @@ with tab_analisi:
                             file_name=f"{nome_base}_orientamento_{rac['orientamento_id']}.stl",
                             mime="model/stl",
                         )
+                        nome_3mf = f"{nome_base}_orientamento_{rac['orientamento_id']}.3mf"
+                        progetto_3mf = cartella / "esportazioni" / nome_3mf
+                        if progetto_3mf.is_file():
+                            c_3mf.download_button(
+                                "Scarica progetto 3MF", progetto_3mf.read_bytes(),
+                                file_name=nome_3mf,
+                                mime="application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+                            )
+                        elif c_3mf.button("Prepara progetto 3MF"):
+                            modifiche = {**supporti, **variante["impostazioni"]}
+                            filamento_3mf = dati.get("sezionamento", {}).get("filamento", config.PROFILO_FILAMENTO)
+                            try:
+                                with st.spinner("ElegooSlicer prepara il progetto 3MF..."):
+                                    slicer_cli.esporta_3mf(
+                                        orientato, progetto_3mf, base, filamento_3mf, modifiche,
+                                    )
+                            except Exception as errore_3mf:
+                                st.error(f"Esportazione 3MF non riuscita: {errore_3mf}")
+                            else:
+                                st.rerun()
                     st.caption("Importa il JSON in ElegooSlicer come configurazione di processo. "
-                               "Lo STL è già ruotato e appoggiato sul piatto nell'orientamento consigliato.")
+                               "STL e 3MF sono già ruotati e appoggiati sul piatto nell'orientamento consigliato.")
                     riga_scelta = next((r for r in opt.get("risultati", [])
                                         if r["orientamento_id"] == rac["orientamento_id"]
                                         and r["variante_id"] == rac["variante_id"]), None)
