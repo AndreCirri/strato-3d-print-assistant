@@ -8,7 +8,8 @@ import warnings
 from collections import Counter
 import numpy as np
 import trimesh
-from shapely.geometry import MultiPoint, Point
+from shapely.geometry import MultiPoint, Point, Polygon, LineString
+from shapely.ops import polygonize, unary_union
 
 import config
 import orienta_slicer
@@ -64,40 +65,68 @@ def spessori(mesh, rng):
     }
 
 
-def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None):
+def _superficie_esposta(triangolo, normale, corpi):
+    """Sottrae le sezioni degli altri solidi dalla faccia nel suo piano locale."""
+    origine = triangolo[0] + normale * 1e-4
+    u = triangolo[1] - triangolo[0]
+    u = u / np.linalg.norm(u)
+    v = np.cross(normale, u)
+    base = np.column_stack((u, v))
+    faccia = Polygon((triangolo - triangolo[0]) @ base)
+    coperture = []
+    for corpo in corpi:
+        if not corpo.is_watertight:
+            continue
+        sezione = corpo.section(plane_origin=origine, plane_normal=normale)
+        if sezione is None:
+            continue
+        linee = [LineString((linea - origine) @ base) for linea in sezione.discrete]
+        for poligono in polygonize(linee):
+            punto = np.asarray(poligono.representative_point().coords[0])
+            if corpo.contains([origine + base @ punto])[0]:
+                coperture.append(poligono)
+    esposta = faccia.difference(unary_union(coperture)) if coperture else faccia
+    if esposta.is_empty or esposta.area <= faccia.area * 1e-8:
+        return 0.0, triangolo.mean(axis=0)
+    punto = np.asarray(esposta.representative_point().coords[0])
+    return min(1.0, esposta.area / faccia.area), triangolo[0] + base @ punto
+
+
+def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None, con_frazioni=False):
     """Per un pezzo già orientato (piatto a z=zmin): quali facce chiedono supporti e da dove."""
     rng = rng or np.random.default_rng(0)
     zmin = mesh.bounds[0, 2]
     nz = mesh.face_normals[:, 2]
-    zc = mesh.triangles_center[:, 2]
     appoggio = (nz < -0.99) & (mesh.triangles[:, :, 2].max(axis=1) < zmin + 0.05)
     sporgenza = (nz < -math.cos(math.radians(soglia))) & ~appoggio
-    # Gli STL possono contenere solidi distinti che si compenetrano. Una faccia rivolta in basso ma
-    # già immersa in un altro corpo non è una sporgenza: lo slicer unisce i volumi e non crea supporti.
+    # Mantieni la sola area realmente esposta: il centro del triangolo non basta a stabilire
+    # se una faccia è interamente coperta. Le frazioni sono usate nelle misure quantitative.
+    frazioni = np.ones(len(mesh.faces))
+    punti_raggi = mesh.triangles_center.copy()
     idx_sporgenza = np.where(sporgenza)[0]
     corpi = mesh.split(only_watertight=False)
     if len(idx_sporgenza) and len(corpi) > 1:
-        punti_esterni = (mesh.triangles_center[idx_sporgenza]
-                         + mesh.face_normals[idx_sporgenza] * 1e-2)
-        dentro_altro_corpo = np.zeros(len(idx_sporgenza), dtype=bool)
-        for corpo in corpi:
-            if corpo.is_watertight:
-                dentro_altro_corpo |= corpo.contains(punti_esterni)
-        sporgenza[idx_sporgenza[dentro_altro_corpo]] = False
+        for i in idx_sporgenza:
+            frazioni[i], punti_raggi[i] = _superficie_esposta(
+                mesh.triangles[i], mesh.face_normals[i], corpi,
+            )
+        sporgenza &= frazioni > 0
     tipo = np.zeros(len(mesh.faces), dtype=np.int8)       # 0 ok, 1 supporto dal piatto, 2 supporto sul pezzo
     distanza = np.zeros(len(mesh.faces))
     idx = np.where(sporgenza)[0]
     if len(idx):
-        orig = mesh.triangles_center[idx] + np.array([0, 0, -1e-3])
+        orig = punti_raggi[idx] + np.array([0, 0, -1e-5])
         giu = np.tile([0.0, 0.0, -1.0], (len(idx), 1))
         loc, iray, _ = mesh.ray.intersects_location(orig, giu, multiple_hits=False)
         colpito = np.zeros(len(idx), bool)
-        dist = zc[idx] - zmin
+        dist = punti_raggi[idx, 2] - zmin
         if len(iray):                      # nessun raggio a segno: tutte le sporgenze vanno al piatto
             colpito[iray] = True
             dist[iray] = orig[iray, 2] - np.asarray(loc).reshape(-1, 3)[:, 2]
         tipo[idx] = np.where(colpito, 2, 1)
         distanza[idx] = dist
+    if con_frazioni:
+        return tipo, distanza, appoggio, frazioni
     return tipo, distanza, appoggio
 
 
@@ -133,8 +162,8 @@ def consiglio_brim(contatto, altezza, ribalta):
 
 
 def valuta_orientamento(mesh, soglia=SOGLIA_SUPPORTI):
-    tipo, dist, appoggio = classifica_facce(mesh, soglia)
-    area_xy = mesh.area_faces * np.abs(mesh.face_normals[:, 2])   # proiezione sul piatto
+    tipo, dist, appoggio, frazioni = classifica_facce(mesh, soglia, con_frazioni=True)
+    area_xy = mesh.area_faces * np.abs(mesh.face_normals[:, 2]) * frazioni
     dal_piatto, sul_pezzo = tipo == 1, tipo == 2
     contatto = float(mesh.area_faces[appoggio].sum())
     h = float(mesh.extents[2])

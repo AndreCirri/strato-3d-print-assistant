@@ -6,7 +6,7 @@ LAVORI = CARTELLA / "lavori"          # una sottocartella per ogni analisi
 DIARIO = CARTELLA / "diario.jsonl"     # una riga per ogni stampa annotata
 BOBINE = CARTELLA / "bobine.json"       # inventario personale, non versionato
 FOTO = CARTELLA / "foto"
-VERSIONE_GEOMETRIA = 2                   # forza il ricalcolo delle analisi con algoritmi precedenti
+VERSIONE_GEOMETRIA = 3                   # forza il ricalcolo delle analisi con algoritmi precedenti
 
 STAMPANTE = {
     "modello": "Elegoo Centauri Carbon",

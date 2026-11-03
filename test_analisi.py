@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import trimesh
 
-from analisi import classifica_facce
+from analisi import classifica_facce, valuta_orientamento
 
 
 def scatola(dimensioni, centro_z):
@@ -13,6 +13,28 @@ def scatola(dimensioni, centro_z):
 
 
 class ClassificaFacceTest(unittest.TestCase):
+    def test_non_somma_due_volte_le_coperture_sovrapposte(self):
+        base = scatola([8, 8, 2], 1)
+        seconda_base = base.copy()
+        seconda_base.apply_translation([1, 0, 0])
+        superiore = scatola([10, 10, 4], 3)
+        mesh = trimesh.util.concatenate([base, seconda_base, superiore])
+
+        esito = valuta_orientamento(mesh)
+
+        # Unione delle basi: 9 × 8 = 72 mm²; fondo superiore: 100 mm².
+        self.assertAlmostEqual(esito['supporti_dal_piatto_area_mm2'], 28, places=2)
+
+    def test_copertura_parziale_preserva_i_36_mm2_esposti(self):
+        base = scatola([8, 8, 2], 1)
+        superiore = scatola([10, 10, 4], 3)
+        mesh = trimesh.util.concatenate([base, superiore])
+
+        esito = valuta_orientamento(mesh)
+
+        self.assertAlmostEqual(esito['supporti_dal_piatto_area_mm2'], 36, places=2)
+        self.assertAlmostEqual(esito['supporti_sul_pezzo_area_mm2'], 0, places=2)
+
     def test_non_chiede_supporti_per_una_faccia_gia_dentro_un_altro_corpo(self):
         base = scatola([10, 10, 2], 1)
         corpo_sovrapposto = scatola([10, 10, 4], 3)
