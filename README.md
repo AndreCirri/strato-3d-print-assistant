@@ -189,6 +189,20 @@ e generatori di dati sintetici restano versionabili. I file `.env.example`, `.en
 possono essere condivisi solo con valori dimostrativi. Le regole di esclusione non rimuovono file già
 committati né dati presenti nella cronologia Git.
 
+## Dati inviati a Claude
+
+Tutto resta su questo PC finché non chiedi un consiglio o una diagnosi. Solo allora la richiesta va ad
+Anthropic tramite il Claude Agent SDK, con il **tuo** login di Claude Code o la tua `ANTHROPIC_API_KEY`:
+il progetto non contiene e non salva credenziali.
+
+- **Consiglio**: stampante (`config.py`), campi del modulo (scopo, priorità, carichi), l'analisi in JSON
+  (misure, orientamenti, risultati dello slicer) e le ultime 15 voci del diario; Claude apre con lo
+  strumento di lettura le immagini degli orientamenti nella cartella del lavoro.
+- **Diagnosi**: la voce del diario, le sue foto e le altre voci recenti.
+
+Claude ha solo lo strumento di lettura (niente comandi né modifiche) e parte dalla cartella del lavoro, dove
+c'è anche il file del modello. Le impostazioni e la memoria personali di Claude Code non vengono caricate.
+
 ## Licenza
 
 Copyright (C) 2026 Andrea Cirrincione.

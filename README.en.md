@@ -191,6 +191,20 @@ migrations and synthetic fixture generators remain versionable. Shared `.env.exa
 and `.env.template` files must contain placeholder values only. Ignore rules do not remove files that
 have already been committed or data stored in Git history.
 
+## Data sent to Claude
+
+Everything stays on this PC until you ask for advice or a diagnosis. Only then is the request sent to
+Anthropic through the Claude Agent SDK, with **your** Claude Code login or your `ANTHROPIC_API_KEY`:
+the project contains and stores no credentials.
+
+- **Advice**: printer (`config.py`), form fields (purpose, priority, loads), the analysis as JSON
+  (measurements, orientations, slicer results) and the last 15 journal entries; Claude opens the
+  orientation images in the job folder with its read tool.
+- **Diagnosis**: the journal entry, its photos and the other recent entries.
+
+Claude only has the read tool (no commands, no changes) and starts from the job folder, which also holds
+the model file. Claude Code's personal settings and memory are not loaded.
+
 ## License
 
 Copyright (C) 2026 Andrea Cirrincione.
