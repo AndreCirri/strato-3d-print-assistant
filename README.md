@@ -106,8 +106,12 @@ Se vengono indicati tipo e direzione del carico, la dashboard confronta anche la
 normalmente agli strati nei diversi orientamenti. È un'indicazione relativa sul rischio di delaminazione,
 con un primo suggerimento sul numero di pareti; non è una simulazione FEM e non stima il carico di rottura.
 Con priorità robustezza viene misurato anche il processo **Meccanico** nell'orientamento indicato,
-con il numero di pareti richiesto; i download sono disponibili solo dopo questo confronto. Per flessione
-va indicato l'asse della tensione locale. Torsione e urti non sono valutabili dall'attuale euristica.
+con il numero di pareti richiesto; i download sono disponibili solo dopo questo confronto. Si possono
+indicare fissaggio e applicazione del carico in coordinate del file, vincoli e zona critica. In flessione
+l'asse della trave viene dai due punti, distinto dalla forza, ed è riportato il braccio trasversale.
+La torsione confronta 32 stati di taglio ideali attorno all'asse, mostrando separatamente apertura e
+taglio sul piano layer. Pareti e indice restano euristici: non sono calcolati tensioni assolute, urti o
+carichi di rottura, né la distribuzione reale delle tensioni dovuta ai vincoli descritti.
 
 I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problemi della mesh, pareti sotto
 due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di

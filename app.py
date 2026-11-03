@@ -38,12 +38,16 @@ CAMPI_RICHIESTA = {"scopo": "scopo", "tipo": "uso", "priorita": "priorita", "con
                    "note": "note", "sollecitazione": "sollecitazione", "direzione_carico": "direzione_carico",
                    "parte_critica": "parte_critica", "profilo_filamento": "profilo_filamento",
                    "budget_ricerca": "budget_ricerca"}
+CAMPI_RICHIESTA.update({k: k for k in ('usa_punti_carico', 'vincoli', 'zona_critica',
+                                      'fissaggio_x', 'fissaggio_y', 'fissaggio_z', 'carico_x', 'carico_y', 'carico_z')})
 FORMATI_MODELLO = {".stl", ".3mf", ".obj", ".step", ".stp"}
 DEFAULT_RICHIESTA = {
     "scopo": "", "tipo": "funzionale / meccanico", "priorita": "robustezza e rigidità",
     "condizioni": [], "filamenti_disponibili": ["PLA", "PETG"], "multimateriale_per_supporti": False,
     "note": "", "sollecitazione": "non specificata", "direzione_carico": "non specificata",
     "parte_critica": "nessuna indicata", "profilo_filamento": config.PROFILO_FILAMENTO, "budget_ricerca": 4}
+DEFAULT_RICHIESTA.update(usa_punti_carico=False, vincoli='', zona_critica='',
+                        fissaggio_x=0., fissaggio_y=0., fissaggio_z=0., carico_x=0., carico_y=0., carico_z=10.)
 
 
 def apri_lavoro(cartella):
@@ -286,9 +290,18 @@ with tab_analisi:
             ["nessuna indicata", "perno", "linguetta flessibile", "gancio", "foro/fissaggio", "parete sottile"],
             key="parte_critica",
         )
-    st.caption("Indica la direzione della trazione/compressione nella zona critica. Per la flessione serve "
-               "l'asse delle tensioni longitudinali, non la direzione della forza applicata. "
-               "L'euristica non valuta torsione e urti.")
+        st.text_input('Fissaggi e vincoli', key='vincoli', placeholder='es. incastro alla base, due viti')
+        st.text_input('Zona critica caricata', key='zona_critica', placeholder='es. radice del gancio, parete laterale')
+        usa_punti = st.checkbox('Indico fissaggio e applicazione del carico nel file (mm)', key='usa_punti_carico')
+        if usa_punti:
+            for prefisso, etichetta in (('fissaggio', 'Fissaggio'), ('carico', 'Applicazione carico')):
+                colonne = st.columns(3)
+                for colonna, asse in zip(colonne, 'xyz'):
+                    st.session_state.setdefault(prefisso + '_' + asse, DEFAULT_RICHIESTA[prefisso + '_' + asse])
+                    colonna.number_input(f'{etichetta} {asse.upper()} mm', key=prefisso + '_' + asse)
+        st.caption('La direzione selezionata è quella della forza; in torsione rappresenta l’asse se non specifichi i punti. '
+                   'Punti distinti definiscono l’asse fissaggio–carico per flessione/torsione. Il confronto usa tensioni ideali, non una FEM. '
+                   'Gli urti richiedono una verifica separata.')
     with st.expander('Ricerca dei parametri'):
         st.session_state.setdefault('budget_ricerca', 4)
         st.number_input('Prove aggiuntive oltre i preset', min_value=0, max_value=8, key='budget_ricerca')
@@ -313,7 +326,8 @@ with tab_analisi:
                 st.rerun()
             analizza_ora = b2.button("Rifai l'analisi da capo")
 
-    richiesta_corrente = {campo: st.session_state.get(chiave) for campo, chiave in CAMPI_RICHIESTA.items()}
+    richiesta_corrente = {campo: st.session_state.get(chiave, DEFAULT_RICHIESTA.get(campo))
+                         for campo, chiave in CAMPI_RICHIESTA.items()}
     richiesta_corrente["profilo_filamento"] = profilo_filamento if SLICER else config.PROFILO_FILAMENTO
     if "lavoro" in st.session_state:
         salva_json(Path(st.session_state["lavoro"]) / "richiesta.json", richiesta_corrente)
@@ -403,9 +417,7 @@ with tab_analisi:
             st.markdown("**Chi sceglie cosa**")
             st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
             st.caption(dati["confronto_slicer"]["nota"])
-        meccanica = resistenza.valuta(
-            dati["orientamenti"], direzione_carico, sollecitazione, parte_critica, dati.get("spessori"),
-        )
+        meccanica = confronto.meccanica(dati, richiesta_corrente)
         if meccanica:
             dati["analisi_meccanica"] = meccanica
             st.markdown("**Resistenza rispetto agli strati**")
@@ -413,11 +425,14 @@ with tab_analisi:
             st.info(f"Per il carico dichiarato, l'orientamento {preferito} riduce maggiormente la componente "
                     f"che tende a separare gli strati. Indicazione iniziale: {meccanica['pareti_consigliate']} pareti.")
             st.dataframe(pd.DataFrame(meccanica["risultati"])[[
-                "orientamento_id", "carico_tra_strati_pct", "rischio_delaminazione"
+                "orientamento_id", "carico_tra_strati_pct", "taglio_relativo_pct", "rischio_delaminazione"
             ]], width="stretch", hide_index=True)
             for avviso_meccanico in meccanica["avvisi"]:
                 st.warning(avviso_meccanico)
             st.caption(meccanica["limite"])
+            st.caption(meccanica['criterio'])
+        elif sollecitazione != 'non specificata':
+            st.warning('Caso meccanico non valutabile: verifica la direzione e che fissaggio e carico siano distinti. Gli urti non sono modellati.')
         else:
             dati.pop("analisi_meccanica", None)
         controlli_stampa = stampabilita.valuta(dati, config.VOLUME_STAMPA, config.UGELLO_MM)

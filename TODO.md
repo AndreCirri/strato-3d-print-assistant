@@ -22,7 +22,7 @@ Ogni fix deve avere verifica mirata e descrizione. Dopo G01, i fix sono raccolti
 ## Funzionalità ancora parziali
 
 - [x] O01 — Ricerca locale progressiva oltre i preset, con budget 0–8 prove, una modifica per candidato, esclusione delle coppie già provate e checkpoint intermedi. Limiti: layer 0,12–0,28, pareti 2–5, infill 5–35%. Pesi del compromesso espliciti al 25%; l'esplorazione è locale e non garantisce l'ottimo globale.
-- [ ] M02 — Raccogliere fissaggi e zona caricata; rivedere le euristiche per flessione e torsione e i suggerimenti sulle pareti.
+- [x] M02 — Fissaggio e applicazione del carico in coordinate del file, descrizione dei vincoli e della zona critica persistite. Flessione lungo l'asse fissaggio–carico e braccio trasversale; torsione mediante 32 stati di taglio ideali. Apertura/taglio sul piano layer distinti, regole sulle pareti dichiarate ed avvisi sulle pareti fisicamente realizzabili. Restano esclusi FEM, urti, tensioni assolute e carichi di rottura.
 - [ ] S01 — Implementare veri controlli di cavità/supporti intrappolati, ponti, fori, isole e collisioni del toolpath.
 - [x] D02 — Tendenze filtrate per materiale e profilo; mediane dei parametri solo su stampe riuscite senza problemi. Le correzioni sono esplicitamente predefinite; i vecchi record senza profilo restano nel gruppo non annotato.
 - [x] G02 — Unione volumetrica con manifold3d prima di analisi, orientamenti e slicing. Volume, superficie e spessori escludono le superfici interne; registrate le informazioni originali. Se l'unione non è affidabile, i valori quantitativi non vengono dichiarati. Sul contenitore: volume unito 32,541 cm³ rispetto a 41,834 cm³ di somma dei due corpi; p5 dello spessore 1 mm anziché 0,02 mm.

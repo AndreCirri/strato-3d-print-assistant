@@ -13,7 +13,10 @@ from persistenza import impronta, salva_json
 def meccanica(dati, richiesta):
     return resistenza.valuta(dati["orientamenti"], richiesta.get("direzione_carico"),
                              richiesta.get("sollecitazione", "non specificata"),
-                             richiesta.get("parte_critica", "nessuna indicata"), dati.get("spessori"))
+                             richiesta.get("parte_critica", "nessuna indicata"), dati.get("spessori"),
+                             [richiesta.get('fissaggio_' + k, 0) for k in 'xyz'] if richiesta.get('usa_punti_carico') else None,
+                             [richiesta.get('carico_' + k, 0) for k in 'xyz'] if richiesta.get('usa_punti_carico') else None,
+                             richiesta.get('vincoli', ''), richiesta.get('zona_critica', ''))
 
 
 def firma(modello, dati, richiesta):
