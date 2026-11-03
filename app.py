@@ -385,7 +385,27 @@ with tab_analisi:
 
     if "lavoro" in st.session_state:
         cartella = Path(st.session_state["lavoro"])
-        dati = classifica.applica(json.loads((cartella / "analisi.json").read_text(encoding="utf-8")))
+        dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
+        if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
+            from analisi import aggiorna_geometria, carica
+            from render import griglia_orientamenti, viste
+            percorso_mesh = percorso_modello_lavoro(cartella, dati)
+            if percorso_mesh is not None:
+                mesh_aggiornata = carica(percorso_mesh)
+                aggiorna_geometria(mesh_aggiornata, dati)
+                classifica.applica(dati)
+                nuovi_primi = [o["id"] for o in dati["orientamenti"][:config.NUM_ORIENTAMENTI_VARIANTI]]
+                precedente = dati.get("ottimizzazione_processo")
+                if precedente and precedente.get("orientamenti_confrontati") != nuovi_primi:
+                    dati.pop("ottimizzazione_processo", None)
+                griglia_orientamenti(mesh_aggiornata, dati["orientamenti"], cartella / "orientamenti.png")
+                for orientamento in dati["orientamenti"][:2]:
+                    viste(mesh_aggiornata, orientamento["trasformazione"],
+                          cartella / f"viste_{orientamento['id']}.png",
+                          f"Orientamento {orientamento['id']} ({orientamento['origine']})")
+                salva_analisi(cartella, dati)
+                st.info("Analisi geometrica aggiornata: i solidi sovrapposti non vengono più contati come supporti.")
+        dati = classifica.applica(dati)
         st.subheader("2. Cosa dice la geometria")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Dimensioni (mm)", " × ".join(f"{x:g}" for x in dati["dimensioni_mm"]))

@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="trimesh")
 MAX_RAGGI = 20000          # facce campionate per i calcoli con i raggi (pezzi grandi)
 SOGLIA_SUPPORTI = float(config.SOGLIA_SUPPORTI)   # la stessa passata allo slicer
 DENSITA = {"PLA": 1.24, "PETG": 1.27, "ASA": 1.07, "ABS": 1.04, "TPU": 1.21, "PLA-CF": 1.29}
+VERSIONE_GEOMETRIA = config.VERSIONE_GEOMETRIA
 
 
 def carica(percorso):
@@ -71,6 +72,18 @@ def classifica_facce(mesh, soglia=SOGLIA_SUPPORTI, rng=None):
     zc = mesh.triangles_center[:, 2]
     appoggio = (nz < -0.99) & (mesh.triangles[:, :, 2].max(axis=1) < zmin + 0.05)
     sporgenza = (nz < -math.cos(math.radians(soglia))) & ~appoggio
+    # Gli STL possono contenere solidi distinti che si compenetrano. Una faccia rivolta in basso ma
+    # già immersa in un altro corpo non è una sporgenza: lo slicer unisce i volumi e non crea supporti.
+    idx_sporgenza = np.where(sporgenza)[0]
+    corpi = mesh.split(only_watertight=False)
+    if len(idx_sporgenza) and len(corpi) > 1:
+        punti_esterni = (mesh.triangles_center[idx_sporgenza]
+                         + mesh.face_normals[idx_sporgenza] * 1e-2)
+        dentro_altro_corpo = np.zeros(len(idx_sporgenza), dtype=bool)
+        for corpo in corpi:
+            if corpo.is_watertight:
+                dentro_altro_corpo |= corpo.contains(punti_esterni)
+        sporgenza[idx_sporgenza[dentro_altro_corpo]] = False
     tipo = np.zeros(len(mesh.faces), dtype=np.int8)       # 0 ok, 1 supporto dal piatto, 2 supporto sul pezzo
     distanza = np.zeros(len(mesh.faces))
     idx = np.where(sporgenza)[0]
@@ -157,6 +170,28 @@ def penalita_stabilita(o):
 NOMI_SLICER = {"interfaccia": "slicer, pulsante Orienta", "riga_di_comando": "slicer, riga di comando"}
 
 
+def avvisi_orientamento(v):
+    avvisi = []
+    if v["area_appoggio_mm2"] < APPOGGIO_MINIMO:
+        avvisi.append("appoggia su punte o spigoli: senza brim o supporti si stacca")
+    if v["supporti_sul_pezzo_area_mm2"] > 0:
+        avvisi.append("alcune sporgenze poggerebbero sul pezzo stesso (supporti difficili da togliere)")
+    if v["si_ribalta"]:
+        avvisi.append("si ribalta: il baricentro è fuori dall'appoggio, lo reggono solo i supporti")
+    if v["brim_consigliato"]:
+        avvisi.append("serve il brim: " + v["brim_motivo"])
+    return avvisi
+
+
+def completa_punteggio_geometrico(v):
+    v["penalita_stabilita"] = round(penalita_stabilita(v), 1)
+    v["punteggio"] = round(v["supporti_dal_piatto_area_mm2"] + 3 * v["supporti_sul_pezzo_area_mm2"]
+                           + 0.02 * v["volume_supporti_stimato_mm3"] + v["penalita_stabilita"], 1)
+    v["punteggio_geometrico"] = v["punteggio"]
+    v["avvisi"] = avvisi_orientamento(v)
+    return v
+
+
 def orientamenti(mesh, n=6, scelte_slicer=()):
     """Orientamento del file + pose stabili più probabili + scelte dello slicer, ognuna valutata.
     Ogni candidato ha anche il costo che gli darebbe il pulsante Orienta dello slicer."""
@@ -167,6 +202,12 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         # se la scelta dello slicer coincide con un candidato, si segna su quello
         if not any(orienta_slicer.direzione_su(T) @ np.array(s["su"]) > 0.999 for T, _, _ in candidati):
             candidati.append((np.array(s["trasformazione"]), None, NOMI_SLICER[s["modo"]]))
+    unici = []
+    for candidato in candidati:
+        su = orienta_slicer.direzione_su(candidato[0])
+        if not any(su @ orienta_slicer.direzione_su(esistente[0]) > 0.999 for esistente in unici):
+            unici.append(candidato)
+    candidati = unici
     scafo = mesh.convex_hull
     out = []
     for T, p, origine in candidati:
@@ -176,16 +217,7 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         v = valuta_orientamento(m)
         v["origine"] = origine
         v["probabilita_appoggio"] = round(float(p), 3) if p is not None else None
-        avvisi = []
-        if v["area_appoggio_mm2"] < APPOGGIO_MINIMO:
-            avvisi.append("appoggia su punte o spigoli: senza brim o supporti si stacca")
-        if v["supporti_sul_pezzo_area_mm2"] > 0:
-            avvisi.append("alcune sporgenze poggerebbero sul pezzo stesso (supporti difficili da togliere)")
-        if v["si_ribalta"]:
-            avvisi.append("si ribalta: il baricentro è fuori dall'appoggio, lo reggono solo i supporti")
-        if v["brim_consigliato"]:
-            avvisi.append("serve il brim: " + v["brim_motivo"])
-        v["avvisi"] = avvisi
+        v["avvisi"] = avvisi_orientamento(v)
         su = orienta_slicer.direzione_su(T)
         v["costo_slicer"] = round(orienta_slicer.costo(mesh, su, SOGLIA_SUPPORTI, scafo)[0], 3)
         v["scelto_da_slicer"] = [NOMI_SLICER[s["modo"]] for s in scelte_slicer if su @ np.array(s["su"]) > 0.999]
@@ -193,11 +225,7 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
     # punteggio semplice (più basso = meglio): i supporti sul pezzo pesano il triplo,
     # l'appoggio su spigoli e il ribaltamento costano quanto sostenere tutto l'ingombro
     for o in out:
-        o["penalita_stabilita"] = round(penalita_stabilita(o), 1)
-        o["punteggio"] = round(o["supporti_dal_piatto_area_mm2"] + 3 * o["supporti_sul_pezzo_area_mm2"]
-                               + 0.02 * o["volume_supporti_stimato_mm3"] + o["penalita_stabilita"], 1)
-        # Alias esplicito: dopo lo slicing esisterà anche un punteggio in grammi equivalenti.
-        o["punteggio_geometrico"] = o["punteggio"]
+        completa_punteggio_geometrico(o)
     out.sort(key=lambda o: o["punteggio"])
     for i, o in enumerate(out, 1):
         o["id"] = i
@@ -211,6 +239,7 @@ def analizza(percorso):
     # anche con pochi bordi aperti il volume resta una buona stima
     vol_cm3 = abs(float(mesh.volume)) / 1000 if aperti < 0.01 * len(mesh.edges_unique) else None
     info = {
+        "versione_geometria": VERSIONE_GEOMETRIA,
         "file": str(percorso),
         "facce": int(len(mesh.faces)),
         "chiuso_stagno": bool(mesh.is_watertight),
@@ -228,6 +257,25 @@ def analizza(percorso):
     info["orientamenti"] = orientamenti(mesh, scelte_slicer=scelte)
     info["confronto_slicer"] = confronto_slicer(info["orientamenti"], scelte)
     return mesh, info
+
+
+def aggiorna_geometria(mesh, dati):
+    """Ricalcola le misure dipendenti dall'orientamento senza cambiare gli ID esistenti."""
+    aggiornati = []
+    direzioni = []
+    for orientamento in dati.get("orientamenti", []):
+        su = orienta_slicer.direzione_su(orientamento["trasformazione"])
+        if any(su @ esistente > 0.999 for esistente in direzioni):
+            continue
+        direzioni.append(su)
+        ruotata = mesh.copy()
+        ruotata.apply_transform(orientamento["trasformazione"])
+        ruotata.apply_translation(-ruotata.bounds[0])
+        misure = completa_punteggio_geometrico(valuta_orientamento(ruotata))
+        aggiornati.append({**orientamento, **misure})
+    dati["orientamenti"] = aggiornati
+    dati["versione_geometria"] = VERSIONE_GEOMETRIA
+    return dati
 
 
 CAMPI_CONFRONTO = ["altezza_mm", "area_appoggio_mm2", "supporti_dal_piatto_area_mm2", "supporti_sul_pezzo_area_mm2",

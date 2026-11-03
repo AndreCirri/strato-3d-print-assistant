@@ -97,6 +97,8 @@ con un primo suggerimento sul numero di pareti; non è una simulazione FEM e non
 I **controlli avanzati di stampabilità** raccolgono in un'unica tabella problemi della mesh, pareti sotto
 due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto alti e consumo eccessivo di
 supporti. I rischi di collisione o supporti intrappolati restano esplicitamente da confermare nell'anteprima.
+I solidi sovrapposti nello stesso STL vengono trattati come materiale continuo, come fa lo slicer, e le
+loro superfici interne non vengono conteggiate come sporgenze da sostenere.
 
 Il diario può registrare anche temperature, velocità, flow, retrazione ed errore dimensionale. Le
 **tendenze personali** compaiono solo dopo almeno due osservazioni coerenti per lo stesso materiale:
