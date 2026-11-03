@@ -360,6 +360,11 @@ with tab_analisi:
                 )
         dati = classifica.applica(dati)
         st.subheader("2. Cosa dice la geometria")
+        unione = dati.get('unione_solidi', {})
+        if unione.get('applicata'):
+            st.caption(f"Uniti {unione['corpi_originali']} solidi: volume, superficie e spessori descrivono il materiale risultante.")
+        elif unione and not unione.get('misure_affidabili'):
+            st.warning('La mesh non definisce un volume affidabile: spessori, volume e peso pieno non sono disponibili.')
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Dimensioni (mm)", " × ".join(f"{x:g}" for x in dati["dimensioni_mm"]))
         m2.metric("Volume", f"{dati['volume_cm3']} cm³" if dati["volume_cm3"] else "n.d.")

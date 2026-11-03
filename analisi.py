@@ -27,7 +27,45 @@ def carica(percorso):
     mesh = trimesh.load_mesh(percorso, force="mesh", process=True, validate=True)
     trimesh.repair.fill_holes(mesh)
     trimesh.repair.fix_normals(mesh)
+    return unisci_solidi(mesh)
+
+
+def unisci_solidi(mesh):
+    corpi = mesh.split(only_watertight=False)
+    nota = {'corpi_originali': len(corpi), 'applicata': False,
+            'misure_affidabili': bool(mesh.is_volume)}
+    if len(corpi) > 1:
+        if all(c.is_volume for c in corpi):
+            try:
+                unione = trimesh.boolean.union(corpi, engine='manifold')
+                if unione is None or not unione.is_volume:
+                    raise ValueError('Unione non volumetrica')
+                nota.update(applicata=True, misure_affidabili=True,
+                            volume_originale_somma_mm3=float(sum(c.volume for c in corpi)),
+                            volume_unione_mm3=float(unione.volume))
+                mesh = unione
+            except (ValueError, RuntimeError, ImportError) as errore:
+                nota.update(misure_affidabili=False, errore=str(errore))
+        else:
+            nota.update(misure_affidabili=False, errore='Sono presenti corpi aperti o gusci non volumetrici')
+    mesh.metadata['unione_solidi'] = nota
     return mesh
+
+
+def misure_globali(mesh):
+    nota = mesh.metadata.get('unione_solidi', {'misure_affidabili': bool(mesh.is_volume)})
+    affidabile = nota['misure_affidabili']
+    volume = float(mesh.volume) / 1000 if affidabile else None
+    return {'facce': len(mesh.faces), 'chiuso_stagno': bool(mesh.is_watertight),
+            'bordi_aperti': bordi_aperti(mesh), 'normali_coerenti': bool(mesh.is_winding_consistent),
+            'corpi_separati': len(mesh.split(only_watertight=False)),
+            'dimensioni_mm': [round(float(x), 1) for x in mesh.extents],
+            'volume_cm3': round(volume, 3) if volume is not None else None,
+            'peso_g_se_pieno': {k: round(volume * d, 2) for k, d in DENSITA.items()} if volume is not None else None,
+            'superficie_cm2': round(float(mesh.area) / 100, 2) if affidabile else None,
+            'spessori': spessori(mesh, np.random.default_rng(0)) if affidabile else
+                         {'nota': 'Misure quantitative non disponibili per geometria non volumetrica'},
+            'unione_solidi': nota}
 
 
 def bordi_aperti(mesh):
@@ -262,24 +300,11 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
 
 
 def analizza(percorso):
-    rng = np.random.default_rng(0)
     mesh = carica(percorso)
-    aperti = bordi_aperti(mesh)
-    # anche con pochi bordi aperti il volume resta una buona stima
-    vol_cm3 = abs(float(mesh.volume)) / 1000 if aperti < 0.01 * len(mesh.edges_unique) else None
     info = {
         "versione_geometria": VERSIONE_GEOMETRIA,
         "file": str(percorso),
-        "facce": int(len(mesh.faces)),
-        "chiuso_stagno": bool(mesh.is_watertight),
-        "bordi_aperti": aperti,
-        "normali_coerenti": bool(mesh.is_winding_consistent),
-        "corpi_separati": int(len(mesh.split(only_watertight=False))),
-        "dimensioni_mm": [round(float(x), 1) for x in mesh.extents],
-        "volume_cm3": round(vol_cm3, 2) if vol_cm3 else None,
-        "superficie_cm2": round(float(mesh.area) / 100, 1),
-        "peso_g_se_pieno": {k: round(vol_cm3 * d, 1) for k, d in DENSITA.items()} if vol_cm3 else None,
-        "spessori": spessori(mesh, rng),
+        **misure_globali(mesh),
         "soglia_supporti_gradi": SOGLIA_SUPPORTI,
     }
     scelte = [orienta_slicer.scelta_slicer(mesh, SOGLIA_SUPPORTI, modo) for modo in ("interfaccia", "riga_di_comando")]
@@ -303,6 +328,7 @@ def aggiorna_geometria(mesh, dati):
         misure = completa_punteggio_geometrico(valuta_orientamento(ruotata))
         aggiornati.append({**orientamento, **misure})
     dati["orientamenti"] = aggiornati
+    dati.update(misure_globali(mesh))
     dati["versione_geometria"] = VERSIONE_GEOMETRIA
     return dati
 

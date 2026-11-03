@@ -114,6 +114,9 @@ due larghezze di linea, ingombro, stabilità, supporti sul pezzo, supporti molto
 supporti. I rischi di collisione o supporti intrappolati restano esplicitamente da confermare nell'anteprima.
 I solidi sovrapposti nello stesso STL vengono trattati come materiale continuo, come fa lo slicer, e le
 loro superfici interne non vengono conteggiate come sporgenze da sostenere.
+Prima delle misure viene eseguita un'unione volumetrica con manifold3d: anche volume, superficie e
+spessori si riferiscono al materiale risultante. Se i corpi non consentono un'unione affidabile, le
+misure quantitative non vengono mostrate come dati validi.
 
 Il diario può registrare anche temperature, velocità, flow, retrazione ed errore dimensionale. Le
 **tendenze personali** compaiono solo dopo almeno due osservazioni coerenti per lo stesso materiale:

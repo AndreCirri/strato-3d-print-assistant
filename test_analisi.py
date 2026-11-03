@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import trimesh
 
-from analisi import classifica_facce, valuta_orientamento
+from analisi import classifica_facce, valuta_orientamento, unisci_solidi, misure_globali
 
 
 def scatola(dimensioni, centro_z):
@@ -13,6 +13,16 @@ def scatola(dimensioni, centro_z):
 
 
 class ClassificaFacceTest(unittest.TestCase):
+    def test_unione_non_duplica_volume_ne_spessori_interni(self):
+        base = scatola([10, 10, 2], 1)
+        superiore = scatola([10, 10, 4], 3)
+        mesh = unisci_solidi(trimesh.util.concatenate([base, superiore]))
+        misure = misure_globali(mesh)
+        self.assertAlmostEqual(mesh.volume, 500)
+        self.assertAlmostEqual(mesh.area, 400)
+        self.assertTrue(misure['unione_solidi']['applicata'])
+        self.assertGreaterEqual(misure['spessori']['minimo_mm'], 4.99)
+
     def test_non_somma_due_volte_le_coperture_sovrapposte(self):
         base = scatola([8, 8, 2], 1)
         seconda_base = base.copy()

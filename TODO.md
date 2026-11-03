@@ -25,7 +25,7 @@ Ogni fix deve avere verifica mirata e descrizione. Dopo G01, i fix sono raccolti
 - [ ] M02 — Raccogliere fissaggi e zona caricata; rivedere le euristiche per flessione e torsione e i suggerimenti sulle pareti.
 - [ ] S01 — Implementare veri controlli di cavità/supporti intrappolati, ponti, fori, isole e collisioni del toolpath.
 - [x] D02 — Tendenze filtrate per materiale e profilo; mediane dei parametri solo su stampe riuscite senza problemi. Le correzioni sono esplicitamente predefinite; i vecchi record senza profilo restano nel gruppo non annotato.
-- [ ] G02 — Estendere il trattamento dei solidi sovrapposti a spessori, volumi e altri indicatori geometrici.
+- [x] G02 — Unione volumetrica con manifold3d prima di analisi, orientamenti e slicing. Volume, superficie e spessori escludono le superfici interne; registrate le informazioni originali. Se l'unione non è affidabile, i valori quantitativi non vengono dichiarati. Sul contenitore: volume unito 32,541 cm³ rispetto a 41,834 cm³ di somma dei due corpi; p5 dello spessore 1 mm anziché 0,02 mm.
 
 ## Verifiche
 
