@@ -198,10 +198,13 @@ il progetto non contiene e non salva credenziali.
 - **Consiglio**: stampante (`config.py`), campi del modulo (scopo, priorità, carichi), l'analisi in JSON
   (misure, orientamenti, risultati dello slicer) e le ultime 15 voci del diario; Claude apre con lo
   strumento di lettura le immagini degli orientamenti nella cartella del lavoro.
-- **Diagnosi**: la voce del diario, le sue foto e le altre voci recenti.
+- **Diagnosi**: stampante (`config.py`), la voce del diario, le sue foto e le altre voci recenti.
 
-Claude ha solo lo strumento di lettura (niente comandi né modifiche) e parte dalla cartella del lavoro, dove
-c'è anche il file del modello. Le impostazioni e la memoria personali di Claude Code non vengono caricate.
+Claude ha solo lo strumento di lettura: niente comandi né modifiche. Per il consiglio parte dalla cartella del
+lavoro, dove c'è anche il file del modello; per la diagnosi dalla cartella del progetto, che contiene anche
+`lavori/`, `foto/` e il diario. La cartella di partenza **non è un limite**: lo strumento di lettura può aprire
+qualsiasi file leggibile del PC, anche se le istruzioni gli indicano solo i dati e le immagini della richiesta.
+Le impostazioni e la memoria personali di Claude Code non vengono caricate.
 
 ## Licenza
 

@@ -200,10 +200,13 @@ the project contains and stores no credentials.
 - **Advice**: printer (`config.py`), form fields (purpose, priority, loads), the analysis as JSON
   (measurements, orientations, slicer results) and the last 15 journal entries; Claude opens the
   orientation images in the job folder with its read tool.
-- **Diagnosis**: the journal entry, its photos and the other recent entries.
+- **Diagnosis**: printer (`config.py`), the journal entry, its photos and the other recent entries.
 
-Claude only has the read tool (no commands, no changes) and starts from the job folder, which also holds
-the model file. Claude Code's personal settings and memory are not loaded.
+Claude only has the read tool: no commands, no changes. For advice it starts from the job folder, which
+also holds the model file; for a diagnosis from the project folder, which also contains `lavori/`, `foto/`
+and the journal. The starting folder is **not a limit**: the read tool can open any readable file on the PC,
+even though the instructions point it only to the data and images of the request.
+Claude Code's personal settings and memory are not loaded.
 
 ## License
 
