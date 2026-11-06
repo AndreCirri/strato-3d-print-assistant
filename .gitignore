@@ -2,6 +2,7 @@
 __pycache__/
 .venv/
 .venv-augura/
+.worktrees/
 
 # Personal print data and downloaded add-ons
 lavori/

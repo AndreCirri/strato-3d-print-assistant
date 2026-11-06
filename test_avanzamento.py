@@ -49,7 +49,8 @@ class AvanzamentoTest(unittest.TestCase):
                 app.session_state['lavoro'] = str(lavoro)
                 app.run()
                 self.assertFalse(app.exception)
-                self.assertEqual(len(app.tabs), 4)
+                self.assertEqual([tab.label for tab in app.tabs],
+                             ["Analisi", "Diario", "Bobine", "Storico", "Impostazioni"])
                 barre = app.get('progress')
                 self.assertEqual(len(barre), 1)
                 self.assertIn('45%', barre[0].proto.text)

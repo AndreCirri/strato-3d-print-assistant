@@ -27,9 +27,13 @@ import confronto
 from persistenza import salva_json
 from validazione import riga_valida
 import time
+import ui
+import risultati
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 
-st.set_page_config(page_title="Assistente stampa 3D", page_icon="🧩", layout="wide")
+st.set_page_config(page_title="STRATO · Assistente di stampa 3D", page_icon="◒", layout="wide", initial_sidebar_state="collapsed")
+ui.imposta_stile()
+ui.intestazione(config.STAMPANTE["modello"])
 for d in (config.LAVORI, config.FOTO):
     d.mkdir(exist_ok=True)
 
@@ -71,6 +75,7 @@ def mostra_avanzamento(cartella):
 def apri_lavoro(cartella):
     """Apre un lavoro salvato: niente da ricalcolare, si rileggono i file della sua cartella.
     I campi del modulo si ripristinano al giro successivo, prima che i widget vengano creati."""
+    st.session_state["fase_ui"] = 6
     st.session_state["lavoro"] = str(cartella)
     st.query_params["lavoro"] = cartella.name     # nell'URL: il lavoro resta aperto anche ricaricando la pagina
     richiesta = cartella / "richiesta.json"
@@ -90,7 +95,16 @@ for campo, chiave in CAMPI_RICHIESTA.items():
         st.session_state[chiave] = st.session_state["da_ripristinare"][campo]
 st.session_state.pop("da_ripristinare", None)
 
-with st.sidebar:
+# I campi restano disponibili anche nelle fasi in cui i widget non sono montati.
+for campo, chiave in CAMPI_RICHIESTA.items():
+    st.session_state[chiave] = st.session_state.get(chiave, DEFAULT_RICHIESTA.get(campo))
+
+with st.container(key="navigazione"):
+    tab_analisi, tab_diario, tab_bobine, tab_storico, tab_impostazioni = st.tabs(
+        ["Analisi", "Diario", "Bobine", "Storico", "Impostazioni"]
+    )
+
+with tab_impostazioni:
     st.header("Impostazioni")
     modello = config.MODELLI[st.selectbox("Modello di Claude", list(config.MODELLI))]
     st.caption("Usa il login di Claude Code di questo PC: con l'abbonamento non c'è costo extra, "
@@ -98,6 +112,9 @@ with st.sidebar:
     st.subheader("Stampante")
     st.json(config.STAMPANTE, expanded=False)
     st.subheader("Sezionamento reale")
+    with st.expander("Percorsi dello slicer"):
+        st.text(f"Eseguibile: {slicer_cli.ESEGUIBILE}\nProfili: {slicer_cli.PROFILI}")
+        st.caption("Per cambiarli imposta STRATO_SLICER_EXE e STRATO_SLICER_PROFILES prima di avviare l’app.")
     SLICER = slicer_cli.disponibile()
     if SLICER:
         filamenti_slicer = slicer_cli.filamenti_disponibili()
@@ -139,9 +156,6 @@ with st.sidebar:
                     stato.update(label="augura installato", state="complete")
                     st.rerun()
 
-tab_analisi, tab_diario, tab_bobine, tab_storico = st.tabs(
-    ["Analizza un pezzo", "Diario di stampa", "Bobine", "Analisi passate"]
-)
 
 
 def tabella_confronto(dati, cartella):
@@ -269,81 +283,396 @@ def descrivi_lavoro(cartella, dati):
     return " — ".join(parti)
 
 
+
+
+def mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione):
+    st.subheader("Geometria e verifiche")
+    unione = dati.get('unione_solidi', {})
+    if unione.get('applicata'):
+        st.caption(f"Uniti {unione['corpi_originali']} solidi: volume, superficie e spessori descrivono il materiale risultante.")
+    elif unione and not unione.get('misure_affidabili'):
+        st.warning('La mesh non definisce un volume affidabile: spessori, volume e peso pieno non sono disponibili.')
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Dimensioni (mm)", " × ".join(f"{x:g}" for x in dati["dimensioni_mm"]))
+    m2.metric("Volume", f"{dati['volume_cm3']} cm³" if dati["volume_cm3"] else "n.d.")
+    sp = dati["spessori"]
+    m3.metric("Spessore minimo", f"{sp.get('minimo_mm', '?')} mm", help=sp.get("nota"))
+    m4.metric("Pareti sotto 1,2 mm", f"{sp.get('area_sotto_1_2mm_pct', '?')} %")
+    if not dati["chiuso_stagno"]:
+        st.info(f"Il modello non è perfettamente chiuso ({dati['bordi_aperti']} bordi aperti): "
+                "di solito lo slicer lo ripara da solo, ma controlla l'anteprima.")
+    def riga(o):
+        r = {k: v for k, v in o.items() if k not in ("trasformazione", "slicer", "punteggio")}
+        s = o.get("slicer") or {}
+        if s and "errore" not in s:
+            r.update({"filamento pezzo g": s["pezzo_g"], "filamento supporti g": s["supporti_g"],
+                      "brim g": s["brim_g"], "tempo": s.get("tempo"), "tempo_s": s.get("tempo_s")})
+        elif s:
+            r["sezionamento"] = "errore: " + s["errore"]
+        return r
+    tabella = pd.DataFrame([riga(o) for o in dati["orientamenti"]])
+    if "sezionamento" in dati:
+        st.caption(f"Grammi e tempi: sezionamento reale con ElegooSlicer, filamento «{dati['sezionamento']['filamento']}». "
+                   "I grammi sono il filamento estruso misurato nel G-code (lo slicer dichiara qualche decimo di grammo "
+                   "in più per retrazioni e spurgo).")
+    for col in ("avvisi", "scelto_da_slicer"):
+        if col in tabella:
+            tabella[col] = tabella[col].apply(lambda a: "; ".join(a) if isinstance(a, list) else a)
+    st.dataframe(tabella.set_index("id"), width="stretch")
+    if dati.get("classifica", {}).get("metodo") == "sezionamento_reale":
+        st.caption("Classifica reale: grammi di supporto del G-code + stima delle sporgenze non servite dal profilo "
+                   "solo dal piatto (peso triplo) + 25% del brim + penalità di stabilità. Più basso = meglio. "
+                   "Il punteggio geometrico resta visibile per confronto.")
+    else:
+        st.caption("Classifica geometrica: più basso = meno supporti da togliere. I supporti che poggiano sul pezzo "
+                   "pesano il triplo. Sarà sostituita dalla classifica reale quando ElegooSlicer è disponibile.")
+    if "confronto_slicer" in dati:
+        st.markdown("**Chi sceglie cosa**")
+        st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
+        st.caption(dati["confronto_slicer"]["nota"])
+    meccanica = confronto.meccanica(dati, richiesta_corrente)
+    if meccanica:
+        dati["analisi_meccanica"] = meccanica
+        st.markdown("**Resistenza rispetto agli strati**")
+        preferito = meccanica["orientamento_consigliato"]
+        st.info(f"Per il carico dichiarato, l'orientamento {preferito} riduce maggiormente la componente "
+                f"che tende a separare gli strati. Indicazione iniziale: {meccanica['pareti_consigliate']} pareti.")
+        st.dataframe(pd.DataFrame(meccanica["risultati"])[[
+            "orientamento_id", "carico_tra_strati_pct", "taglio_relativo_pct", "rischio_delaminazione"
+        ]], width="stretch", hide_index=True)
+        for avviso_meccanico in meccanica["avvisi"]:
+            st.warning(avviso_meccanico)
+        st.caption(meccanica["limite"])
+        st.caption(meccanica['criterio'])
+    elif sollecitazione != 'non specificata':
+        st.warning('Caso meccanico non valutabile: verifica la direzione e che fissaggio e carico siano distinti. Gli urti non sono modellati.')
+    else:
+        dati.pop("analisi_meccanica", None)
+    controlli_stampa = stampabilita.valuta(dati, config.VOLUME_STAMPA, config.UGELLO_MM)
+    dati["stampabilita_avanzata"] = controlli_stampa
+    st.markdown("**Controlli avanzati di stampabilità**")
+    if controlli_stampa["controlli"]:
+        icone = {"errore": "🔴", "avviso": "🟠", "info": "🔵"}
+        tabella_controlli = pd.DataFrame([{
+            "livello": icone[r["gravita"]], "controllo": r["controllo"],
+            "orientamento": r.get('orientamento_id'),
+            "problema": r["messaggio"], "cosa fare": r["azione"],
+        } for r in controlli_stampa["controlli"]])
+        st.dataframe(tabella_controlli, width="stretch", hide_index=True)
+    else:
+        st.success("Nessun problema rilevato dai controlli disponibili.")
+    with st.expander("Limiti dei controlli automatici"):
+        for limite_controllo in controlli_stampa["limiti"]:
+            st.caption(limite_controllo)
+    if st.button('Esegui i controlli dettagliati su sezioni e toolpath'):
+        lavorazioni.avvia(cartella, 'controlli')
+        st.rerun()
+    dettaglio = dati.get('controlli_dettagliati')
+    if dettaglio:
+        st.caption(f"Ultimi controlli dettagliati: orientamento {dettaglio['orientamento_id']}, variante {dettaglio['variante']}.")
+        with st.expander('Dettagli di cavità, ponti, fori e percorsi'):
+            geometria = dettaglio.get('geometria') or {}
+            percorso = dettaglio.get('toolpath') or {}
+            st.caption(geometria.get('limite', geometria.get('motivo', '')))
+            st.caption(percorso.get('limite', 'G-code non disponibile: controlli solo geometrici.'))
+            for nome in ('cavita_chiuse', 'ponti', 'fori_piccoli', 'isole_geometriche'):
+                if geometria.get(nome):
+                    st.write(nome.replace('_', ' '))
+                    st.dataframe(pd.DataFrame(geometria[nome]), hide_index=True)
+            for nome in ('collisioni', 'isole_senza_appoggio', 'percorsi_disconnessi'):
+                if percorso.get(nome):
+                    st.write(nome.replace('_', ' '))
+                    st.dataframe(pd.DataFrame(percorso[nome]), hide_index=True)
+            if percorso.get('limitato') or percorso.get('archi_non_analizzati'):
+                st.warning('Analisi del toolpath parziale: raggiunto il limite di segmenti o presenti archi non supportati.')
+    profilo_usato = dati.get("sezionamento", {}).get("filamento", "")
+    materiale_storico = calibrazione.materiale_da_profilo(profilo_usato, config.FILAMENTI)
+    storico_personale = calibrazione.analizza(diario.tutte(), materiale_storico, profilo=profilo_usato) \
+        if materiale_storico else calibrazione.analizza([])
+    dati["calibrazione_personale"] = storico_personale
+    if storico_personale["stampe_considerate"]:
+        st.markdown("**Esperienza personale dal diario**")
+        if storico_personale["problemi_ricorrenti"]:
+            st.dataframe(pd.DataFrame(storico_personale["problemi_ricorrenti"]),
+                         width="stretch", hide_index=True)
+        elif not storico_personale["dati_sufficienti"]:
+            st.caption(f"Una sola stampa annotata per {materiale_storico or 'questo materiale'}: "
+                       "la registro, ma non la tratto ancora come una tendenza.")
+        if storico_personale["compensazione_dimensionale"]:
+            st.info(storico_personale["compensazione_dimensionale"]["indicazione"])
+        st.caption(storico_personale["limite"])
+        st.caption(storico_personale["origine_correzioni"])
+    if dati.get("immagini_da_aggiornare"):
+        st.warning("Le misure sono aggiornate; le immagini appartengono alla versione precedente dell'analisi.")
+        if st.button("Aggiorna le immagini degli orientamenti"):
+            lavorazioni.avvia(cartella, "immagini")
+            st.rerun()
+    if (cartella / "orientamenti.png").exists():
+        st.image(str(cartella / "orientamenti.png"))
+    for img in immagini_lavoro(cartella, dati)[1:]:
+        st.image(str(img))
+
+    if "augura" in dati:
+        au = dati["augura"]
+        st.markdown(f"**Controlli di augura** — geometria {au['geometria']}")
+        gravita = {"error": "🔴 errore", "warning": "🟠 avviso", "info": "🔵 info"}
+        righe = [{"livello": gravita.get(f["severity"], f["severity"]), "controllo": f["kind"], "messaggio": f["message"]}
+                 for f in au.get("controlli_come_nel_file", [])]
+        if righe:
+            st.dataframe(pd.DataFrame(righe), width="stretch", hide_index=True)
+        if au.get("orientamenti"):
+            st.caption("Orientamenti secondo augura (rotazione X, Y, Z in gradi rispetto al file)")
+            st.dataframe(pd.DataFrame(au["orientamenti"]), width="stretch")
+        for e in au.get("errori", []):
+            st.warning(f"augura: {e}")
+
+
+
+
+def mostra_download(cartella, dati, opt, esportazione):
+    variante = next((v for v in opt.get("varianti", [])
+                     if v["id"] == esportazione["variante_id"]), None)
+    if variante:
+        base = dati.get("sezionamento", {}).get("processo", config.PROFILO_PROCESSO)
+        supporti = dati.get("sezionamento", {}).get("supporti", config.SUPPORTI_SEZIONAMENTO)
+        pezzo = Path(dati.get("file", cartella.name)).stem
+        nome_profilo = f"Assistente stampa - {pezzo} - {esportazione['variante']}"
+        profilo = slicer_cli.profilo_utente(
+            nome_profilo, base, variante["impostazioni"], supporti,
+        )
+        nome_base = nome_file_sicuro(f"{pezzo}_{esportazione['variante_id']}")
+        c_3mf, c_stl, c_profilo = st.columns(3)
+        c_profilo.download_button(
+            "↓ Profilo JSON",
+            json.dumps(profilo, ensure_ascii=False, indent=2),
+            file_name=f"{nome_base}.json", width="stretch",
+            mime="application/json",
+            help='Scarica le impostazioni del processo selezionato: layer, pareti, riempimento e supporti. Non contiene il modello.',
+        )
+        orientato = stl_raccomandato(cartella, esportazione, opt.get("varianti", []))
+        if orientato:
+            c_stl.download_button(
+                "↓ STL orientato",
+                orientato.read_bytes(),
+                file_name=f"{nome_file_sicuro(pezzo)}_orientamento_{esportazione['orientamento_id']}.stl", width="stretch",
+                mime="model/stl",
+                help='Contiene solo la geometria ruotata. Per lo stesso orientamento è uguale in tutte le varianti; non include impostazioni di stampa.',
+            )
+            nome_3mf = f"{nome_base}_orientamento_{esportazione['orientamento_id']}.3mf"
+            progetto_3mf = cartella / "esportazioni" / nome_3mf
+            modifiche = {**supporti, **variante["impostazioni"]}
+            filamento_3mf = dati.get("sezionamento", {}).get("filamento", config.PROFILO_FILAMENTO)
+            if slicer_cli.progetto_valido(orientato, progetto_3mf, base, filamento_3mf, modifiche):
+                c_3mf.download_button(
+                    "↓ Progetto 3MF", progetto_3mf.read_bytes(), width="stretch",
+                    file_name=nome_3mf,
+                    mime="application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+                )
+            elif c_3mf.button("Prepara progetto 3MF", type="primary", width="stretch",
+                help='ElegooSlicer genera il progetto con modello orientato, processo selezionato, stampante e filamento. Al termine compare il download.'):
+                salva_json(cartella / "esportazione.json", {
+                    "stl": str(orientato.relative_to(cartella)),
+                    "destinazione": str(progetto_3mf.relative_to(cartella)),
+                    "processo": base, "filamento": filamento_3mf, "modifiche": modifiche})
+                lavorazioni.avvia(cartella, "3mf")
+                st.rerun()
+        st.caption("3MF: modello e profilo · STL: geometria orientata · JSON: impostazioni.")
+
+
+
+def mostra_bobina(dati, esportazione):
+    materiale_g = esportazione.get("consumo_totale_g")
+    filamento_scelto = dati.get("sezionamento", {}).get("filamento", "")
+    materiale_bobina = calibrazione.materiale_da_profilo(filamento_scelto, config.FILAMENTI)
+    if isinstance(materiale_g, (int, float)):
+        disponibilita = bobine.stime(bobine.tutte(), materiale_bobina, materiale_g)
+        if disponibilita:
+            migliore_bobina = disponibilita[0]
+            if migliore_bobina["sufficiente"]:
+                costo = migliore_bobina["costo_stimato_eur"]
+                costo_testo = f", costo stimato {costo:.2f} €" if costo is not None else ""
+                st.info(f"Bobina «{migliore_bobina['bobina']}»: materiale sufficiente, "
+                        f"restano circa {migliore_bobina['margine_g']:g} g con riserva del 5%{costo_testo}.")
+            else:
+                st.warning(f"Nessuna bobina {materiale_bobina or ''} registrata contiene i "
+                           f"{materiale_g:g} g necessari.")
+        else:
+            st.caption("Verifica il materiale e registra una bobina pronta nella scheda Bobine.")
+    else:
+        st.caption("Consumo totale non disponibile: ricalcola i processi prima di verificare le bobine.")
+
+
+
+def ricalcola_varianti(cartella, opt):
+    varianti_calcolate = {v["id"]: v.get("impostazioni", {}) for v in opt.get("varianti", [])}
+    varianti_mancanti = [v for v in config.VARIANTI_PROCESSO
+                         if varianti_calcolate.get(v["id"]) != v["impostazioni"]]
+    errori_varianti = any(not riga_valida(r) for r in opt.get("risultati", []))
+    if SLICER:
+        nomi_mancanti = ", ".join(v["nome"] for v in varianti_mancanti)
+        etichetta = (f"Approfondisci con {nomi_mancanti}" if nomi_mancanti else
+                     "Riprova i processi falliti" if errori_varianti else "Ricalcola e verifica i processi")
+        if st.button(etichetta):
+            lavorazioni.avvia(cartella, "varianti")
+            st.rerun()
+    st.caption("Tempo e materiale sono misurati; superficie e robustezza sono indicatori basati su layer, "
+               "pareti e riempimento. Pareto indica le configurazioni non dominate sui quattro obiettivi.")
+
+
+
+
+def mostra_consiglio(cartella, dati, richiesta_corrente):
+    st.subheader("Il consiglio di Claude")
+    if st.button("Chiedi a Claude come stamparlo", type="primary") or st.session_state.pop("richiedi_consiglio_ui", False):
+        richiesta = richiesta_corrente
+        immagini = [str(p) for p in immagini_lavoro(cartella, dati)]
+        with st.spinner("Claude sta guardando il pezzo (circa 1-2 minuti)..."):
+            testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello)
+        if errore or not testo:
+            st.error(f"Qualcosa è andato storto: {errore or 'risposta vuota'}")
+        else:
+            salva_json(cartella / "richiesta.json", richiesta)
+            (cartella / "consiglio.md").write_text(testo, encoding="utf-8")
+            n = orientamento_scelto(testo)
+            o = next((o for o in dati["orientamenti"] if o["id"] == n), None)
+            (cartella / "consiglio.json").write_text(json.dumps({
+                "scelta_id": n,
+                "su": orienta_slicer.direzione_su(o["trasformazione"]).round(4).tolist() if o else None,
+                "modello": modello, "costo_usd": costo,
+            }), encoding="utf-8")
+    if (cartella / "consiglio.md").exists():
+        st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
+        info = json.loads((cartella / "consiglio.json").read_text(encoding="utf-8"))                 if (cartella / "consiglio.json").exists() else {}
+        if info.get("costo_usd") is not None:
+            st.caption(f"Modello {info.get('modello')}, equivalente API: {info['costo_usd']:.3f} $")
+        st.info("Dopo la stampa annota com'è andata nella scheda **Diario di stampa**: "
+                "le prossime analisi ne terranno conto.")
+
+
+
 # ------------------------------------------------------------------ analisi
 with tab_analisi:
-    st.subheader("1. Il pezzo e cosa ti serve")
-    formati = ["stl", "3mf", "obj"] + (["step", "stp"] if ADDON else [])
-    file = st.file_uploader("File da stampare", type=formati)
-    c1, c2 = st.columns(2)
-    # valori iniziali in session_state e non come default dei widget: così la riapertura può sovrascriverli
-    st.session_state.setdefault("filamenti", ["PLA", "PETG"])
-    with c1:
-        scopo = st.text_area("A cosa serve, dove va montato", key="scopo",
-                             placeholder="es. pulsante della lavatrice: la linguetta fa da molla, il perno preme l'interruttore")
-        uso = st.selectbox("Tipo di pezzo", ["funzionale / meccanico", "estetico", "prototipo veloce", "misto"], key="uso")
-        priorita = st.selectbox("Cosa conta di più", ["robustezza e rigidità", "superficie bella", "precisione delle misure",
-                                                      "velocità di stampa", "poco materiale"], key="priorita")
-    with c2:
-        ambiente = st.multiselect("Condizioni d'uso", ["caldo oltre 50 °C", "umidità o acqua", "all'aperto (sole)",
-                                                       "sforzi ripetuti / flessione", "urti", "contatto con alimenti"],
-                                  key="ambiente")
-        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, key="filamenti")
-        multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti",
-                                     key="multimateriale")
-        note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)", key="note")
+    fase = st.session_state.setdefault("fase_ui", 6 if "lavoro" in st.session_state else 1)
+    if "lavoro" in st.session_state and lavorazioni.stato(Path(st.session_state["lavoro"])).get("stato") == "in corso":
+        fase = 5
+    if fase != 6:
+        with st.container(key="introduzione_analisi"):
+            ui.percorso(fase, "lavoro" in st.session_state)
+            ui.titolo_fase(fase)
+    file = st.session_state.get("modello_ui")
+    priorita = st.session_state["priorita"]
+    sollecitazione = st.session_state["sollecitazione"]
+    if fase == 1:
+        ui.selezione_modello(file, ADDON)
+    elif fase <= 4:
+        if file:
+            with st.container(key="anteprima_mobile"):
+                ui.anteprima_modello(file)
+        with st.container(key="wizard_layout"):
+            principale, contesto = st.columns([1.3, .8], gap="large")
+            with contesto:
+                ui.contesto_pezzo(file, config.STAMPANTE, st.session_state["filamenti"])
+            with principale:
+                if fase == 2:
+                    ui.contesto_utilizzo()
+                    c1, c2 = st.columns(2)
+                    # valori iniziali in session_state e non come default dei widget: così la riapertura può sovrascriverli
+                    st.session_state.setdefault("filamenti", ["PLA", "PETG"])
+                    with c1:
+                        scopo = st.text_area("A cosa serve, dove va montato", key="scopo",
+                                             placeholder="es. pulsante della lavatrice: la linguetta fa da molla, il perno preme l'interruttore")
+                        uso = st.selectbox("Tipo di pezzo", ["funzionale / meccanico", "estetico", "prototipo veloce", "misto"], key="uso")
+                    with c2:
+                        ambiente = st.multiselect("Condizioni d'uso", ["caldo oltre 50 °C", "umidità o acqua", "all'aperto (sole)",
+                                                                       "sforzi ripetuti / flessione", "urti", "contatto con alimenti"],
+                                                  key="ambiente")
+                        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, key="filamenti")
+                        multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti",
+                                                     key="multimateriale")
+                        note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)", key="note")
 
-    with st.expander("Carichi e resistenza degli strati"):
-        m1, m2, m3 = st.columns(3)
-        sollecitazione = m1.selectbox(
-            "Sollecitazione principale",
-            ["non specificata", "trazione", "compressione", "flessione", "torsione", "urti ripetuti"],
-            key="sollecitazione",
-        )
-        direzione_carico = m2.selectbox(
-            "Direzione rispetto al file",
-            ["non specificata", *resistenza.DIREZIONI],
-            key="direzione_carico",
-        )
-        parte_critica = m3.selectbox(
-            "Parte più critica",
-            ["nessuna indicata", "perno", "linguetta flessibile", "gancio", "foro/fissaggio", "parete sottile"],
-            key="parte_critica",
-        )
-        st.text_input('Fissaggi e vincoli', key='vincoli', placeholder='es. incastro alla base, due viti')
-        st.text_input('Zona critica caricata', key='zona_critica', placeholder='es. radice del gancio, parete laterale')
-        usa_punti = st.checkbox('Indico fissaggio e applicazione del carico nel file (mm)', key='usa_punti_carico')
-        if usa_punti:
-            for prefisso, etichetta in (('fissaggio', 'Fissaggio'), ('carico', 'Applicazione carico')):
-                colonne = st.columns(3)
-                for colonna, asse in zip(colonne, 'xyz'):
-                    st.session_state.setdefault(prefisso + '_' + asse, DEFAULT_RICHIESTA[prefisso + '_' + asse])
-                    colonna.number_input(f'{etichetta} {asse.upper()} mm', key=prefisso + '_' + asse)
-        st.caption('La direzione selezionata è quella della forza; in torsione rappresenta l’asse se non specifichi i punti. '
-                   'Punti distinti definiscono l’asse fissaggio–carico per flessione/torsione. Il confronto usa tensioni ideali, non una FEM. '
-                   'Gli urti richiedono una verifica separata.')
-    with st.expander('Ricerca dei parametri'):
-        st.session_state.setdefault('budget_ricerca', 4)
-        st.number_input('Prove aggiuntive oltre i preset', min_value=0, max_value=8, key='budget_ricerca')
-        st.caption('La ricerca modifica un parametro alla volta attorno alle configurazioni migliori. '
-                   'Il compromesso pesa tempo, materiale, layer e robustezza attesa al 25% ciascuno.')
+                    with st.expander("Carichi e resistenza degli strati"):
+                        m1, m2, m3 = st.columns(3)
+                        sollecitazione = m1.selectbox(
+                            "Sollecitazione principale",
+                            ["non specificata", "trazione", "compressione", "flessione", "torsione", "urti ripetuti"],
+                            key="sollecitazione",
+                        )
+                        direzione_carico = m2.selectbox(
+                            "Direzione rispetto al file",
+                            ["non specificata", *resistenza.DIREZIONI],
+                            key="direzione_carico",
+                        )
+                        parte_critica = m3.selectbox(
+                            "Parte più critica",
+                            ["nessuna indicata", "perno", "linguetta flessibile", "gancio", "foro/fissaggio", "parete sottile"],
+                            key="parte_critica",
+                        )
+                        st.text_input('Fissaggi e vincoli', key='vincoli', placeholder='es. incastro alla base, due viti')
+                        st.text_input('Zona critica caricata', key='zona_critica', placeholder='es. radice del gancio, parete laterale')
+                        usa_punti = st.checkbox('Indico fissaggio e applicazione del carico nel file (mm)', key='usa_punti_carico')
+                        if usa_punti:
+                            for prefisso, etichetta in (('fissaggio', 'Fissaggio'), ('carico', 'Applicazione carico')):
+                                colonne = st.columns(3)
+                                for colonna, asse in zip(colonne, 'xyz'):
+                                    st.session_state.setdefault(prefisso + '_' + asse, DEFAULT_RICHIESTA[prefisso + '_' + asse])
+                                    colonna.number_input(f'{etichetta} {asse.upper()} mm', key=prefisso + '_' + asse)
+                        st.caption('La direzione selezionata è quella della forza; in torsione rappresenta l’asse se non specifichi i punti. '
+                                   'Punti distinti definiscono l’asse fissaggio–carico per flessione/torsione. Il confronto usa tensioni ideali, non una FEM. '
+                                   'Gli urti richiedono una verifica separata.')
+                if fase == 3:
+                    with st.container(border=True):
+                        priorita = st.selectbox("Cosa conta di più", ["robustezza e rigidità", "superficie bella", "precisione delle misure",
+                                                                      "velocità di stampa", "poco materiale"], key="priorita")
+                    with st.expander('Ricerca dei parametri'):
+                        st.session_state.setdefault('budget_ricerca', 4)
+                        st.number_input('Prove aggiuntive oltre i preset', min_value=0, max_value=8, key='budget_ricerca')
+                        st.caption('La ricerca modifica un parametro alla volta attorno alle configurazioni migliori. '
+                                   'Il compromesso pesa tempo, materiale, layer e robustezza attesa al 25% ciascuno.')
+
+                if fase == 4:
+                    with st.container(border=True):
+                        st.subheader("Il punto di partenza.")
+                        for etichetta, valore in (
+                            ("Modello", file.name if file else "Nessun modello selezionato"),
+                            ("Utilizzo", st.session_state["scopo"] or "Non specificato"),
+                            ("Tipo", st.session_state["uso"]),
+                            ("Materiali", ", ".join(st.session_state["filamenti"])),
+                            ("Priorità", priorita),
+                            ("Ricerca", f"{st.session_state['budget_ricerca']} prove aggiuntive"),
+                            ("Stampante", config.STAMPANTE["modello"]),
+                            ("Profilo", profilo_filamento if SLICER else "Slicer non disponibile"),
+                        ):
+                            a, b = st.columns([1, 3])
+                            a.caption(etichetta)
+                            b.write(valore)
+                        st.info("Geometria e slicer costruiscono il confronto. Claude aggiunge una spiegazione solo su richiesta.")
+    if fase <= 4:
+        with st.container(key="azioni_percorso"):
+            indietro, alternativa, avanti = st.columns([1, 2, 1])
+            indietro.button("← Indietro", disabled=fase == 1, on_click=ui.vai_fase,
+                            args=(fase - 1,), key="percorso_indietro", width="stretch")
+            if fase < 4:
+                avanti.button("Continua →", type="primary", disabled=not file,
+                              on_click=ui.vai_fase, args=(fase + 1,),
+                              key="percorso_avanti", width="stretch")
 
     analizza_ora = False
-    if file:
+    if file and fase == 4:
         sha = impronta(file.getvalue())
         gia_fatto = next((l for l in lavori_salvati() if sha in l["impronte"]), None)
         if gia_fatto is None:
-            analizza_ora = st.button("Analizza la geometria", type="primary")
+            analizza_ora = avanti.button("Avvia analisi →", type="primary", width="stretch")
         elif str(gia_fatto["cartella"]) == st.session_state.get("lavoro"):
             st.caption(f"Stai guardando l'analisi salvata di questo file ({descrivi_lavoro(gia_fatto['cartella'], gia_fatto['dati'])}).")
-            analizza_ora = st.button("Rifai l'analisi da capo")
+            analizza_ora = avanti.button("Rifai l'analisi da capo", width="stretch")
         else:
             st.info(f"Questo file è già stato analizzato: {descrivi_lavoro(gia_fatto['cartella'], gia_fatto['dati'])}. "
                     "Puoi riaprire l'analisi salvata senza rifare i calcoli.")
-            b1, b2 = st.columns([1, 3])
-            if b1.button("Riapri l'analisi salvata", type="primary"):
+            if alternativa.button("Riapri l'analisi salvata", type="primary"):
                 apri_lavoro(gia_fatto["cartella"])
                 st.rerun()
-            analizza_ora = b2.button("Rifai l'analisi da capo")
+            analizza_ora = avanti.button("Rifai l'analisi da capo", width="stretch")
 
     richiesta_corrente = {campo: st.session_state.get(chiave, DEFAULT_RICHIESTA.get(campo))
                          for campo, chiave in CAMPI_RICHIESTA.items()}
@@ -362,354 +691,48 @@ with tab_analisi:
         lavorazioni.avvia(cartella)
         st.rerun()
 
-    lavorazione_attiva = False
-    if "lavoro" in st.session_state:
-        stato_lavoro = lavorazioni.stato(Path(st.session_state["lavoro"]))
-        lavorazione_attiva = stato_lavoro.get("stato") == "in corso"
-        if lavorazione_attiva:
-            mostra_avanzamento(Path(st.session_state['lavoro']))
-            if st.button("Aggiorna avanzamento"):
-                st.rerun()
-        elif stato_lavoro.get("stato") in ("errore", "interrotta"):
-            st.warning(stato_lavoro.get("errore", "Lavorazione interrotta"))
-            if st.button("Riprendi la lavorazione"):
-                lavorazioni.avvia(Path(st.session_state["lavoro"]), stato_lavoro.get("modo", "completa"))
-                st.rerun()
-
-    if ("lavoro" in st.session_state and not lavorazione_attiva
-            and (Path(st.session_state["lavoro"]) / "analisi.json").exists()):
-        cartella = Path(st.session_state["lavoro"])
-        dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
-        if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
-            percorso_mesh = percorso_modello_lavoro(cartella, dati)
-            if percorso_mesh is not None:
-                if st.button("Aggiorna la geometria salvata"):
-                    lavorazioni.avvia(cartella, "geometria")
+    if fase >= 5:
+        lavorazione_attiva = False
+        if "lavoro" in st.session_state:
+            stato_lavoro = lavorazioni.stato(Path(st.session_state["lavoro"]))
+            lavorazione_attiva = stato_lavoro.get("stato") == "in corso"
+            if lavorazione_attiva:
+                mostra_avanzamento(Path(st.session_state['lavoro']))
+                if st.button("Aggiorna avanzamento"):
                     st.rerun()
-                st.warning("Geometria salvata con una versione precedente: aggiornala prima del confronto.")
-            else:
-                st.warning(
-                    "Non posso aggiornare la geometria perché il file del modello non è più disponibile."
-                )
-        dati = classifica.applica(dati)
-        st.subheader("2. Cosa dice la geometria")
-        unione = dati.get('unione_solidi', {})
-        if unione.get('applicata'):
-            st.caption(f"Uniti {unione['corpi_originali']} solidi: volume, superficie e spessori descrivono il materiale risultante.")
-        elif unione and not unione.get('misure_affidabili'):
-            st.warning('La mesh non definisce un volume affidabile: spessori, volume e peso pieno non sono disponibili.')
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Dimensioni (mm)", " × ".join(f"{x:g}" for x in dati["dimensioni_mm"]))
-        m2.metric("Volume", f"{dati['volume_cm3']} cm³" if dati["volume_cm3"] else "n.d.")
-        sp = dati["spessori"]
-        m3.metric("Spessore minimo", f"{sp.get('minimo_mm', '?')} mm", help=sp.get("nota"))
-        m4.metric("Pareti sotto 1,2 mm", f"{sp.get('area_sotto_1_2mm_pct', '?')} %")
-        if not dati["chiuso_stagno"]:
-            st.info(f"Il modello non è perfettamente chiuso ({dati['bordi_aperti']} bordi aperti): "
-                    "di solito lo slicer lo ripara da solo, ma controlla l'anteprima.")
-        def riga(o):
-            r = {k: v for k, v in o.items() if k not in ("trasformazione", "slicer", "punteggio")}
-            s = o.get("slicer") or {}
-            if s and "errore" not in s:
-                r.update({"filamento pezzo g": s["pezzo_g"], "filamento supporti g": s["supporti_g"],
-                          "brim g": s["brim_g"], "tempo": s.get("tempo"), "tempo_s": s.get("tempo_s")})
-            elif s:
-                r["sezionamento"] = "errore: " + s["errore"]
-            return r
-        tabella = pd.DataFrame([riga(o) for o in dati["orientamenti"]])
-        if "sezionamento" in dati:
-            st.caption(f"Grammi e tempi: sezionamento reale con ElegooSlicer, filamento «{dati['sezionamento']['filamento']}». "
-                       "I grammi sono il filamento estruso misurato nel G-code (lo slicer dichiara qualche decimo di grammo "
-                       "in più per retrazioni e spurgo).")
-        for col in ("avvisi", "scelto_da_slicer"):
-            if col in tabella:
-                tabella[col] = tabella[col].apply(lambda a: "; ".join(a) if isinstance(a, list) else a)
-        st.dataframe(tabella.set_index("id"), width="stretch")
-        if dati.get("classifica", {}).get("metodo") == "sezionamento_reale":
-            st.caption("Classifica reale: grammi di supporto del G-code + stima delle sporgenze non servite dal profilo "
-                       "solo dal piatto (peso triplo) + 25% del brim + penalità di stabilità. Più basso = meglio. "
-                       "Il punteggio geometrico resta visibile per confronto.")
-        else:
-            st.caption("Classifica geometrica: più basso = meno supporti da togliere. I supporti che poggiano sul pezzo "
-                       "pesano il triplo. Sarà sostituita dalla classifica reale quando ElegooSlicer è disponibile.")
-        if "confronto_slicer" in dati:
-            st.markdown("**Chi sceglie cosa**")
-            st.dataframe(tabella_confronto(dati, cartella), width="stretch", hide_index=True)
-            st.caption(dati["confronto_slicer"]["nota"])
-        meccanica = confronto.meccanica(dati, richiesta_corrente)
-        if meccanica:
-            dati["analisi_meccanica"] = meccanica
-            st.markdown("**Resistenza rispetto agli strati**")
-            preferito = meccanica["orientamento_consigliato"]
-            st.info(f"Per il carico dichiarato, l'orientamento {preferito} riduce maggiormente la componente "
-                    f"che tende a separare gli strati. Indicazione iniziale: {meccanica['pareti_consigliate']} pareti.")
-            st.dataframe(pd.DataFrame(meccanica["risultati"])[[
-                "orientamento_id", "carico_tra_strati_pct", "taglio_relativo_pct", "rischio_delaminazione"
-            ]], width="stretch", hide_index=True)
-            for avviso_meccanico in meccanica["avvisi"]:
-                st.warning(avviso_meccanico)
-            st.caption(meccanica["limite"])
-            st.caption(meccanica['criterio'])
-        elif sollecitazione != 'non specificata':
-            st.warning('Caso meccanico non valutabile: verifica la direzione e che fissaggio e carico siano distinti. Gli urti non sono modellati.')
-        else:
-            dati.pop("analisi_meccanica", None)
-        controlli_stampa = stampabilita.valuta(dati, config.VOLUME_STAMPA, config.UGELLO_MM)
-        dati["stampabilita_avanzata"] = controlli_stampa
-        st.markdown("**Controlli avanzati di stampabilità**")
-        if controlli_stampa["controlli"]:
-            icone = {"errore": "🔴", "avviso": "🟠", "info": "🔵"}
-            tabella_controlli = pd.DataFrame([{
-                "livello": icone[r["gravita"]], "controllo": r["controllo"],
-                "orientamento": r.get('orientamento_id'),
-                "problema": r["messaggio"], "cosa fare": r["azione"],
-            } for r in controlli_stampa["controlli"]])
-            st.dataframe(tabella_controlli, width="stretch", hide_index=True)
-        else:
-            st.success("Nessun problema rilevato dai controlli disponibili.")
-        with st.expander("Limiti dei controlli automatici"):
-            for limite_controllo in controlli_stampa["limiti"]:
-                st.caption(limite_controllo)
-        if st.button('Esegui i controlli dettagliati su sezioni e toolpath'):
-            lavorazioni.avvia(cartella, 'controlli')
-            st.rerun()
-        dettaglio = dati.get('controlli_dettagliati')
-        if dettaglio:
-            st.caption(f"Ultimi controlli dettagliati: orientamento {dettaglio['orientamento_id']}, variante {dettaglio['variante']}.")
-            with st.expander('Dettagli di cavità, ponti, fori e percorsi'):
-                geometria = dettaglio.get('geometria') or {}
-                percorso = dettaglio.get('toolpath') or {}
-                st.caption(geometria.get('limite', geometria.get('motivo', '')))
-                st.caption(percorso.get('limite', 'G-code non disponibile: controlli solo geometrici.'))
-                for nome in ('cavita_chiuse', 'ponti', 'fori_piccoli', 'isole_geometriche'):
-                    if geometria.get(nome):
-                        st.write(nome.replace('_', ' '))
-                        st.dataframe(pd.DataFrame(geometria[nome]), hide_index=True)
-                for nome in ('collisioni', 'isole_senza_appoggio', 'percorsi_disconnessi'):
-                    if percorso.get(nome):
-                        st.write(nome.replace('_', ' '))
-                        st.dataframe(pd.DataFrame(percorso[nome]), hide_index=True)
-                if percorso.get('limitato') or percorso.get('archi_non_analizzati'):
-                    st.warning('Analisi del toolpath parziale: raggiunto il limite di segmenti o presenti archi non supportati.')
-        profilo_usato = dati.get("sezionamento", {}).get("filamento", "")
-        materiale_storico = calibrazione.materiale_da_profilo(profilo_usato, config.FILAMENTI)
-        storico_personale = calibrazione.analizza(diario.tutte(), materiale_storico, profilo=profilo_usato) \
-            if materiale_storico else calibrazione.analizza([])
-        dati["calibrazione_personale"] = storico_personale
-        if storico_personale["stampe_considerate"]:
-            st.markdown("**Esperienza personale dal diario**")
-            if storico_personale["problemi_ricorrenti"]:
-                st.dataframe(pd.DataFrame(storico_personale["problemi_ricorrenti"]),
-                             width="stretch", hide_index=True)
-            elif not storico_personale["dati_sufficienti"]:
-                st.caption(f"Una sola stampa annotata per {materiale_storico or 'questo materiale'}: "
-                           "la registro, ma non la tratto ancora come una tendenza.")
-            if storico_personale["compensazione_dimensionale"]:
-                st.info(storico_personale["compensazione_dimensionale"]["indicazione"])
-            st.caption(storico_personale["limite"])
-            st.caption(storico_personale["origine_correzioni"])
-        if dati.get("immagini_da_aggiornare"):
-            st.warning("Le misure sono aggiornate; le immagini appartengono alla versione precedente dell'analisi.")
-            if st.button("Aggiorna le immagini degli orientamenti"):
-                lavorazioni.avvia(cartella, "immagini")
-                st.rerun()
-        if (cartella / "orientamenti.png").exists():
-            st.image(str(cartella / "orientamenti.png"))
-        for img in immagini_lavoro(cartella, dati)[1:]:
-            st.image(str(img))
-
-        if "augura" in dati:
-            au = dati["augura"]
-            st.markdown(f"**Controlli di augura** — geometria {au['geometria']}")
-            gravita = {"error": "🔴 errore", "warning": "🟠 avviso", "info": "🔵 info"}
-            righe = [{"livello": gravita.get(f["severity"], f["severity"]), "controllo": f["kind"], "messaggio": f["message"]}
-                     for f in au.get("controlli_come_nel_file", [])]
-            if righe:
-                st.dataframe(pd.DataFrame(righe), width="stretch", hide_index=True)
-            if au.get("orientamenti"):
-                st.caption("Orientamenti secondo augura (rotazione X, Y, Z in gradi rispetto al file)")
-                st.dataframe(pd.DataFrame(au["orientamenti"]), width="stretch")
-            for e in au.get("errori", []):
-                st.warning(f"augura: {e}")
-
-        st.subheader("3. Confronto delle varianti di processo")
-        if "ottimizzazione_processo" not in dati and SLICER and "sezionamento" in dati:
-            st.caption("Questa analisi è precedente al confronto automatico. Puoi calcolarlo senza rifare la geometria "
-                       "né i sezionamenti già presenti.")
-            if st.button("Confronta i processi sui migliori orientamenti"):
-                lavorazioni.avvia(cartella, "varianti")
-                st.rerun()
-
-        if "ottimizzazione_processo" in dati:
-            opt = ottimizzazione.aggiorna_priorita(dati["ottimizzazione_processo"], priorita, meccanica)
-            if opt.get("richiede_confronto_meccanico"):
-                st.warning("Nessuna configurazione misurata soddisfa ancora orientamento e pareti richiesti dal carico.")
-            rac = opt.get("raccomandazione")
-            modello_confronto = percorso_modello_lavoro(cartella, dati)
-            confronto_attuale = False
-            if modello_confronto and SLICER:
-                confronto_attuale = opt.get("firma") == confronto.firma(modello_confronto, dati, richiesta_corrente)
-            if not confronto_attuale:
-                rac = None
-                st.warning("Il confronto salvato va verificato con i profili e i carichi attuali. "
-                           "Ricalcola i processi per ottenere una raccomandazione e i download aggiornati.")
-            if rac:
-                st.success(f"Per «{priorita}»: orientamento {rac['orientamento_id']}, "
-                           f"variante {rac['variante']}. {rac['motivo'].capitalize()}.")
-                configurazioni = {(r['orientamento_id'], r['variante_id']): r
-                                  for r in opt.get('risultati', []) if riga_valida(r)}
-                consigliata = (rac['orientamento_id'], rac['variante_id'])
-                chiave_export = f"esportazione_scelta_{cartella}_{opt.get('firma', '')}"
-                precedente = st.session_state.get(chiave_export, consigliata)
-                if precedente not in configurazioni:
-                    precedente = consigliata
-                def descrivi_export(chiave):
-                    r = configurazioni[chiave]
-                    nome = r['variante'].replace('sparse_infill_density', 'riempimento').replace('wall_loops', 'pareti').replace('layer_height', 'layer')
-                    suffisso = ' — consigliata' if chiave == consigliata else ''
-                    return (f"Orientamento {r['orientamento_id']} · {nome} · layer {r['layer_height']} mm · "
-                            f"{r['wall_loops']} pareti · riempimento {r['sparse_infill_density']}{suffisso}")
-                chiavi_export = list(configurazioni)
-                scelta_export = st.selectbox('Configurazione da esportare', chiavi_export,
-                    index=chiavi_export.index(precedente), format_func=descrivi_export,
-                    key='widget_' + chiave_export)
-                # La scelta deve sopravvivere anche quando il widget scompare durante il lavoro 3MF.
-                st.session_state[chiave_export] = scelta_export
-                esportazione = configurazioni[scelta_export]
-                st.caption(f"Esportazione selezionata: layer {esportazione['layer_height']} mm, "
-                           f"{esportazione['wall_loops']} pareti, riempimento {esportazione['sparse_infill_density']}. "
-                           f"Tempo stimato {esportazione.get('tempo', 'n.d.')}.")
-                if meccanica and priorita == 'robustezza e rigidità' and (
-                    esportazione['orientamento_id'] != meccanica['orientamento_consigliato']
-                    or int(esportazione['wall_loops']) < meccanica['pareti_consigliate']):
-                    st.warning('La scelta manuale non rispetta orientamento o pareti suggeriti dal carico dichiarato. '
-                               'La raccomandazione meccanica rimane quella indicata sopra.')
-                variante = next((v for v in opt.get("varianti", [])
-                                 if v["id"] == esportazione["variante_id"]), None)
-                if variante:
-                    base = dati.get("sezionamento", {}).get("processo", config.PROFILO_PROCESSO)
-                    supporti = dati.get("sezionamento", {}).get("supporti", config.SUPPORTI_SEZIONAMENTO)
-                    pezzo = Path(dati.get("file", cartella.name)).stem
-                    nome_profilo = f"Assistente stampa - {pezzo} - {esportazione['variante']}"
-                    profilo = slicer_cli.profilo_utente(
-                        nome_profilo, base, variante["impostazioni"], supporti,
-                    )
-                    nome_base = nome_file_sicuro(f"{pezzo}_{esportazione['variante_id']}")
-                    c_profilo, c_stl, c_3mf = st.columns(3)
-                    c_profilo.download_button(
-                        "Scarica profilo ElegooSlicer",
-                        json.dumps(profilo, ensure_ascii=False, indent=2),
-                        file_name=f"{nome_base}.json",
-                        mime="application/json",
-                        help='Scarica le impostazioni del processo selezionato: layer, pareti, riempimento e supporti. Non contiene il modello.',
-                    )
-                    orientato = stl_raccomandato(cartella, esportazione, opt.get("varianti", []))
-                    if orientato:
-                        c_stl.download_button(
-                            f"Scarica STL orientamento {esportazione['orientamento_id']}",
-                            orientato.read_bytes(),
-                            file_name=f"{nome_file_sicuro(pezzo)}_orientamento_{esportazione['orientamento_id']}.stl",
-                            mime="model/stl",
-                            help='Contiene solo la geometria ruotata. Per lo stesso orientamento è uguale in tutte le varianti; non include impostazioni di stampa.',
-                        )
-                        nome_3mf = f"{nome_base}_orientamento_{esportazione['orientamento_id']}.3mf"
-                        progetto_3mf = cartella / "esportazioni" / nome_3mf
-                        modifiche = {**supporti, **variante["impostazioni"]}
-                        filamento_3mf = dati.get("sezionamento", {}).get("filamento", config.PROFILO_FILAMENTO)
-                        if slicer_cli.progetto_valido(orientato, progetto_3mf, base, filamento_3mf, modifiche):
-                            c_3mf.download_button(
-                                "Scarica progetto 3MF", progetto_3mf.read_bytes(),
-                                file_name=nome_3mf,
-                                mime="application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
-                            )
-                        elif c_3mf.button("Prepara progetto 3MF",
-                            help='ElegooSlicer genera il progetto con modello orientato, processo selezionato, stampante e filamento. Al termine compare il download.'):
-                            salva_json(cartella / "esportazione.json", {
-                                "stl": str(orientato.relative_to(cartella)),
-                                "destinazione": str(progetto_3mf.relative_to(cartella)),
-                                "processo": base, "filamento": filamento_3mf, "modifiche": modifiche})
-                            lavorazioni.avvia(cartella, "3mf")
-                            st.rerun()
-                    st.caption("JSON: solo impostazioni. STL: solo geometria orientata, uguale tra varianti sullo stesso orientamento. "
-                               "3MF: modello e impostazioni della configurazione selezionata, da aprire in ElegooSlicer.")
-                    materiale_g = esportazione.get("consumo_totale_g")
-                    filamento_scelto = dati.get("sezionamento", {}).get("filamento", "")
-                    materiale_bobina = calibrazione.materiale_da_profilo(filamento_scelto, config.FILAMENTI)
-                    if isinstance(materiale_g, (int, float)):
-                        disponibilita = bobine.stime(bobine.tutte(), materiale_bobina, materiale_g)
-                        if disponibilita:
-                            migliore_bobina = disponibilita[0]
-                            if migliore_bobina["sufficiente"]:
-                                costo = migliore_bobina["costo_stimato_eur"]
-                                costo_testo = f", costo stimato {costo:.2f} €" if costo is not None else ""
-                                st.info(f"Bobina «{migliore_bobina['bobina']}»: materiale sufficiente, "
-                                        f"restano circa {migliore_bobina['margine_g']:g} g con riserva del 5%{costo_testo}.")
-                            else:
-                                st.warning(f"Nessuna bobina {materiale_bobina or ''} registrata contiene i "
-                                           f"{materiale_g:g} g necessari.")
-                        else:
-                            st.caption("Verifica il materiale e registra una bobina pronta nella scheda Bobine.")
-                    else:
-                        st.caption("Consumo totale non disponibile: ricalcola i processi prima di verificare le bobine.")
-            righe_varianti = []
-            for r in opt.get("risultati", []):
-                righe_varianti.append({
-                    "orientamento": r["orientamento_id"], "variante": r["variante"],
-                    "layer mm": r["layer_height"], "pareti": r["wall_loops"],
-                    "riempimento": r["sparse_infill_density"], "tempo": r.get("tempo"),
-                    "materiale g": r.get("materiale_g"), "supporti g": r.get("supporti_g"),
-                    "Δ tempo %": r.get("delta_tempo_pct"), "Δ materiale %": r.get("delta_materiale_pct"),
-                    "Pareto": r.get("pareto", False),
-                    "errore": r.get("errore"),
-                })
-            tabella_varianti = pd.DataFrame(righe_varianti)
-            if "errore" in tabella_varianti and tabella_varianti["errore"].isna().all():
-                tabella_varianti = tabella_varianti.drop(columns=["errore"])
-            st.dataframe(tabella_varianti, width="stretch", hide_index=True)
-            if opt.get("alternative"):
-                st.markdown("**Alternative sulla frontiera Pareto**")
-                st.dataframe(pd.DataFrame(opt["alternative"]), width="stretch", hide_index=True)
-            varianti_calcolate = {v["id"]: v.get("impostazioni", {}) for v in opt.get("varianti", [])}
-            varianti_mancanti = [v for v in config.VARIANTI_PROCESSO
-                                 if varianti_calcolate.get(v["id"]) != v["impostazioni"]]
-            errori_varianti = any(not riga_valida(r) for r in opt.get("risultati", []))
-            if SLICER:
-                nomi_mancanti = ", ".join(v["nome"] for v in varianti_mancanti)
-                etichetta = (f"Approfondisci con {nomi_mancanti}" if nomi_mancanti else
-                             "Riprova i processi falliti" if errori_varianti else "Ricalcola e verifica i processi")
-                if st.button(etichetta):
-                    lavorazioni.avvia(cartella, "varianti")
+            elif stato_lavoro.get("stato") in ("errore", "interrotta"):
+                st.warning(stato_lavoro.get("errore", "Lavorazione interrotta"))
+                if st.button("Riprendi la lavorazione"):
+                    lavorazioni.avvia(Path(st.session_state["lavoro"]), stato_lavoro.get("modo", "completa"))
                     st.rerun()
-            st.caption("Tempo e materiale sono misurati; superficie e robustezza sono indicatori basati su layer, "
-                       "pareti e riempimento. Pareto indica le configurazioni non dominate sui quattro obiettivi.")
 
-        st.subheader("4. Consiglio di Claude")
-        if st.button("Chiedi a Claude come stamparlo", type="primary"):
-            richiesta = richiesta_corrente
-            immagini = [str(p) for p in immagini_lavoro(cartella, dati)]
-            with st.spinner("Claude sta guardando il pezzo (circa 1-2 minuti)..."):
-                testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello)
-            if errore or not testo:
-                st.error(f"Qualcosa è andato storto: {errore or 'risposta vuota'}")
-            else:
-                salva_json(cartella / "richiesta.json", richiesta)
-                (cartella / "consiglio.md").write_text(testo, encoding="utf-8")
-                n = orientamento_scelto(testo)
-                o = next((o for o in dati["orientamenti"] if o["id"] == n), None)
-                (cartella / "consiglio.json").write_text(json.dumps({
-                    "scelta_id": n,
-                    "su": orienta_slicer.direzione_su(o["trasformazione"]).round(4).tolist() if o else None,
-                    "modello": modello, "costo_usd": costo,
-                }), encoding="utf-8")
-        if (cartella / "consiglio.md").exists():
-            st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
-            info = json.loads((cartella / "consiglio.json").read_text(encoding="utf-8"))                 if (cartella / "consiglio.json").exists() else {}
-            if info.get("costo_usd") is not None:
-                st.caption(f"Modello {info.get('modello')}, equivalente API: {info['costo_usd']:.3f} $")
-            st.info("Dopo la stampa annota com'è andata nella scheda **Diario di stampa**: "
-                    "le prossime analisi ne terranno conto.")
+        if ("lavoro" in st.session_state and not lavorazione_attiva
+                and (Path(st.session_state["lavoro"]) / "analisi.json").exists()):
+            cartella = Path(st.session_state["lavoro"])
+            dati = json.loads((cartella / "analisi.json").read_text(encoding="utf-8"))
+            if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
+                percorso_mesh = percorso_modello_lavoro(cartella, dati)
+                if percorso_mesh is not None:
+                    if st.button("Aggiorna la geometria salvata"):
+                        lavorazioni.avvia(cartella, "geometria")
+                        st.rerun()
+                    st.warning("Geometria salvata con una versione precedente: aggiornala prima del confronto.")
+                else:
+                    st.warning(
+                        "Non posso aggiornare la geometria perché il file del modello non è più disponibile."
+                    )
+            dati = classifica.applica(dati)
+            risultati.mostra(
+                cartella, dati, richiesta_corrente, SLICER,
+                percorso_modello_lavoro(cartella, dati),
+                download=lambda opt, scelta: mostra_download(cartella, dati, opt, scelta),
+                bobina=lambda scelta: mostra_bobina(dati, scelta),
+                controlli=lambda: mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione),
+                consiglio=lambda: mostra_consiglio(cartella, dati, richiesta_corrente),
+                ricalcola=lambda opt: ricalcola_varianti(cartella, opt),
+            )
 
-# ------------------------------------------------------------------ diario
+    # ------------------------------------------------------------------ diario
 with tab_diario:
     st.subheader("Annota una stampa")
     lavori = sorted((p.name for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True)

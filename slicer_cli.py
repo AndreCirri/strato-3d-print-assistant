@@ -18,8 +18,7 @@ import config
 from persistenza import salva_json, impronta, impronta_file
 from validazione import risultato_valido
 
-ESEGUIBILE = Path(r"C:\Program Files\ElegooSlicer\elegoo-slicer.exe")
-PROFILI = Path(r"C:\Program Files\ElegooSlicer\resources\profiles\Elegoo")
+ESEGUIBILE, PROFILI = config.percorsi_slicer()
 VERSIONE_PROFILO_UTENTE = "1.5.3.4"
 
 

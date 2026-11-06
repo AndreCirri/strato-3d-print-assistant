@@ -15,11 +15,12 @@ import confronto
 import ottimizzazione
 import slicer_cli
 from persistenza import salva_json
+from verifiche.fixture_slicer import slicer_fittizio
 
 
 class EsportazioneSceltaTest(unittest.TestCase):
     def test_scelta_manual_json_stl_3mf_e_persistenza_durante_il_worker(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, slicer_fittizio(tmp):
             root = Path(tmp)
             p = root/'lavori'/'prova'
             p.mkdir(parents=True)
@@ -58,13 +59,22 @@ class EsportazioneSceltaTest(unittest.TestCase):
                 app.query_params['lavoro'] = p.name
                 app.run()
                 self.assertFalse(app.exception)
+                iniziale = next(x for x in app.selectbox if x.label == 'Configurazione da esportare')
+                self.assertEqual(iniziale.value, (opt['raccomandazione']['orientamento_id'], opt['raccomandazione']['variante_id']))
+                for nome in ('Risultato', 'Orientamenti', 'Varianti', 'Controlli', 'Consiglio e apprendimento'):
+                    self.assertTrue(any(tab.label == nome for tab in app.tabs))
+                app.button(key=f"scegli_orientamento_{d['orientamenti'][1]['id']}").click().run()
+                self.assertFalse(app.exception)
+                app.button(key='scegli_variante_veloce').click().run()
+                self.assertFalse(app.exception)
+                self.assertEqual(app.session_state[f'risultati_schede_{p.name}'], 'Varianti')
                 selettore = next(x for x in app.selectbox if x.label == 'Configurazione da esportare')
-                self.assertEqual(selettore.value, (opt['raccomandazione']['orientamento_id'], opt['raccomandazione']['variante_id']))
+                self.assertEqual(selettore.value, (d['orientamenti'][1]['id'], 'veloce'))
                 scelta = (d['orientamenti'][1]['id'], 'veloce')
                 selettore.select(scelta).run()
                 self.assertFalse(app.exception)
                 self.assertEqual(profilo.call_args.args[2]['layer_height'], '0.24')
-                self.assertTrue(any(b.label == f'Scarica STL orientamento {scelta[0]}' for b in app.get('download_button')))
+                self.assertTrue(any(b.label == '↓ STL orientato' for b in app.get('download_button')))
                 next(b for b in app.button if b.label == 'Prepara progetto 3MF').click().run()
                 avvia.assert_called_with(p, '3mf')
                 spec = json.loads((p/'esportazione.json').read_text(encoding='utf-8'))
@@ -79,6 +89,11 @@ class EsportazioneSceltaTest(unittest.TestCase):
                 app.run()
                 selettore = next(x for x in app.selectbox if x.label == 'Configurazione da esportare')
                 self.assertEqual(selettore.value, scelta)
+                # Le nuove viste non devono aggirare la validazione del confronto.
+                with patch('confronto.firma', return_value='profili-modificati'):
+                    app.run()
+                    self.assertFalse(app.exception)
+                    self.assertFalse(app.get('download_button'))
 
 
 if __name__ == '__main__':

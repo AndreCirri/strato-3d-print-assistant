@@ -1,23 +1,122 @@
-# Assistente di stampa 3D
+# STRATO · Assistente di stampa 3D
 
 *[Read in English](README.en.md).*
 
-Analizza un file da stampare, chiede a Claude come stamparlo e spiega il perché di ogni scelta.
-Tiene un diario delle stampe, così i consigli migliorano con l'esperienza sulla tua stampante.
+Prepara un modello per la stampa FDM: osserva il pezzo in 3D, confronta orientamenti e profili,
+controlla le criticità ed esporta la configurazione scelta. Analisi geometrica, slicing e confronto
+funzionano senza AI; Claude aggiunge spiegazioni e diagnosi solo quando lo richiedi.
 
-## Avvio
+Questo progetto è stato sviluppato con l'assistenza di agenti di programmazione AI, tra cui
+Claude Code e OpenAI Codex, sotto la direzione dell'autore.
 
-Doppio clic su `avvia.bat`: la prima volta crea l'ambiente `.venv` e installa `requirements.txt`. Oppure a mano:
+![STRATO: risultato dell’analisi con modello 3D, configurazione selezionata e download](docs/screenshots/risultato.png)
 
-```
+## Interfaccia attuale
+
+Il percorso **Pezzo → Utilizzo → Priorità → Riepilogo → Analisi → Risultato** mantiene le scelte
+mentre navighi. **Indietro**, **Continua** e, nel riepilogo, **Avvia analisi** restano visibili sopra
+la navigazione principale, anche nelle pagine lunghe.
+
+- **Caricamento:** STL, 3MF e OBJ; STEP/STP con l’add-on augura. Un solo box passa dall’upload
+  all’anteprima. La **X** rimuove il file e permette un nuovo caricamento.
+- **Viewer 3D locale:** rotazione, zoom e spostamento con Plotly, sfondo scuro, griglia del piatto
+  e assi XYZ. L’upload mostra il modello neutro; nel risultato le facce possono evidenziare i
+  supporti geometrici: rosso dal piatto, arancione sul pezzo, viola in cavità. Questi colori non
+  rappresentano il toolpath effettivo: verifica sempre l’anteprima dello slicer.
+- **Risultato:** modello orientato, configurazione, tempo e materiale, esportazioni, controlli
+  prima della stampa e accesso al consiglio facoltativo di Claude.
+- **Orientamenti:** schede con miniature, appoggio, tempi e supporti. La scelta aggiorna la
+  configurazione disponibile per l’esportazione.
+- **Varianti:** grafico selezionabile tempo/materiale, parametri del profilo e tabella di confronto.
+  La linea del grafico è la frontiera di Pareto per tempo e consumo totale; gli indicatori di
+  superficie e robustezza restano separati.
+- **Controlli** e **Consiglio e apprendimento:** verifiche geometriche, dettagli del toolpath,
+  immagini e spiegazioni, senza affollare il riepilogo principale.
+
+La barra inferiore apre **Analisi**, **Diario**, **Bobine**, **Storico** e **Impostazioni**.
+Le miniature e le immagini PNG per l’analisi di Claude restano disponibili accanto al viewer.
+
+<details>
+<summary>Altre schermate: caricamento, orientamenti e varianti</summary>
+
+### Caricamento e viewer 3D
+
+![Caricamento della staffa dimostrativa nel viewer interattivo di STRATO](docs/screenshots/caricamento-3d.png)
+
+### Confronto degli orientamenti
+
+![Schede degli orientamenti con miniature e metriche](docs/screenshots/orientamenti.png)
+
+### Confronto delle varianti
+
+![Grafico delle varianti e parametri del profilo selezionato](docs/screenshots/varianti.png)
+
+</details>
+
+Le schermate mostrano l’interfaccia reale in italiano e una staffa generata per la documentazione,
+con analisi e slicing locali. Non contengono modelli, diario o inventario personali. Tempi e consumi
+sono quelli dell’esempio, non valori applicabili ad altri pezzi.
+
+## Requisiti e avvio
+
+Testato su **Windows con Python 3.12**. Gli script di avvio e i percorsi dello slicer attuali sono
+specifici per Windows. Il browser deve supportare WebGL per il viewer interattivo.
+
+- **ElegooSlicer è facoltativo:** serve per tempi/materiali del G-code, confronto dei processi
+  ed esportazioni di stampa verificate. La configurazione iniziale è per **Elegoo Centauri Carbon,
+  ugello 0,4 mm**, con i profili in `config.py`; i percorsi dell’installazione sono in `slicer_cli.py`.
+- **augura è facoltativo:** aggiunge STEP/STP e controlli dedicati, in un ambiente separato.
+- **Claude è facoltativo:** le richieste usano il Claude Agent SDK e l’autenticazione disponibile
+  nel tuo ambiente Claude Code o `ANTHROPIC_API_KEY`. Per l’analisi locale non serve autenticarsi.
+
+Doppio clic su `avvia.bat`: al primo avvio crea `.venv` e installa `requirements.txt`. Oppure,
+dalla cartella del progetto:
+
+```powershell
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-La pagina si apre su http://localhost:8501 ed è raggiungibile solo da questo PC.
-La dashboard compare in pochi secondi: le librerie pesanti (trimesh, matplotlib, Claude Agent SDK)
-si caricano solo alla prima analisi o alla prima domanda a Claude.
+Apri http://localhost:8501. Il server è configurato per essere raggiungibile solo da questo PC.
+Dopo un aggiornamento del progetto, reinstalla le dipendenze con
+`.venv\Scripts\python.exe -m pip install -r requirements.txt`, anche se `.venv` esiste già.
+
+In **Impostazioni** controlla stampante, disponibilità dello slicer e profilo filamento; da lì puoi
+anche gestire augura e scegliere il modello di Claude. Trimesh, Plotly, Matplotlib e l’SDK di Claude
+vengono caricati quando servono al modello, al rendering o alla richiesta, non tutti all’avvio.
+
+## Verifiche
+
+Dalla cartella del progetto:
+
+```powershell
+.venv\Scripts\python.exe -m unittest discover -q
+```
+
+La suite copre geometria, persistenza, percorso guidato, viewer 3D ed esportazioni.
+Usa profili sintetici e non richiede ElegooSlicer. I controlli di stampabilità sono
+campionati o euristici: non certificano la resistenza del pezzo.
+
+### Percorsi dello slicer e verifica completa
+
+I percorsi predefiniti sono definiti in `config.py`. Per cambiarli, impostare prima dell'avvio:
+
+```powershell
+$env:STRATO_SLICER_EXE = 'D:\ElegooSlicer\elegoo-slicer.exe'
+$env:STRATO_SLICER_PROFILES = 'D:\ElegooSlicer\resources\profiles\Elegoo'
+```
+
+Se il percorso dei profili viene omesso, deriva dalla cartella dell'eseguibile.
+I percorsi relativi partono dalla cartella del progetto. Impostazioni mostra i percorsi attivi.
+La verifica opzionale con lo slicer reale usa dati temporanei:
+
+```powershell
+.venv\Scripts\python.exe verifiche/integrazione_worker.py
+```
+
+Senza slicer la verifica dichiara esplicitamente SKIP. Le istruzioni per contribuire sono in
+[CONTRIBUTING.md](CONTRIBUTING.md); le segnalazioni riservate seguono [SECURITY.md](SECURITY.md).
 
 ## Come funziona
 
@@ -43,18 +142,20 @@ si caricano solo alla prima analisi o alla prima domanda a Claude.
    comando). La traduzione è stata verificata contro `elegoo-slicer.exe --orient 1`: stessi
    candidati, costi con scarto mediano 0,1%, stessa scelta. La pagina mostra chi sceglie cosa:
    nostra classifica, slicer e Claude.
-2. **Immagini** (`render.py`): gli orientamenti con le sporgenze colorate
-   (rosso = supporto dal piatto, viola = dal piatto dentro una cavità, arancione = supporto sul pezzo).
+2. **Viewer e immagini** (`visualizzatore.py`, `anteprima.py`, `render.py`): anteprima 3D
+   interattiva nel caricamento e nel risultato, miniature degli orientamenti e PNG per Claude.
+   Le facce colorate distinguono supporti dal piatto, sul pezzo e in cavità: sono indicazioni
+   geometriche, non una simulazione del toolpath.
 3. **Consiglio** (`consiglio.py`): Claude riceve numeri, immagini, stampante, scopo del pezzo
    e diario, e risponde con orientamento, materiale, impostazioni con il perché, rischi,
    un concetto da imparare e un esperimento.
 4. **Diario** (`diario.py`): dopo ogni stampa annoti esito, problemi e foto; Claude può
    fare la diagnosi e le voci entrano nei consigli successivi.
 
-Claude viene usato tramite il **Claude Agent SDK** con il login di Claude Code di questo PC
-(abbonamento: nessun costo extra, conta sui limiti d'uso). Può solo leggere file: niente
-comandi, niente modifiche. Per condividere lo strumento con altre persone serve invece una
-chiave API (`ANTHROPIC_API_KEY`), come chiede Anthropic per i prodotti di terzi.
+Claude viene usato tramite il **Claude Agent SDK** con le credenziali del tuo ambiente.
+Le richieste partono solo quando premi il pulsante di consiglio o diagnosi. Sono consentite
+letture di file, non comandi o modifiche; l’ambito effettivo della lettura è descritto in
+[Dati inviati a Claude](#dati-inviati-a-claude).
 
 ## Sezionamento reale con ElegooSlicer
 
@@ -70,7 +171,7 @@ piatto. Lo slicer non ha un'API: si usa la sua riga di comando (`--slice`, `--lo
 
 I profili di sistema ereditano l'uno dall'altro (`inherits`): vengono fusi in profili completi e
 lasciati marcati come "system", altrimenti la riga di comando li considera incompatibili (codice −17).
-Il profilo filamento si sceglie nella barra laterale. Un orientamento si seziona in circa 2 secondi.
+Il profilo filamento si sceglie in **Impostazioni**. Il tempo necessario dipende da geometria, profilo e computer.
 
 Dopo il sezionamento la classifica viene ricalcolata in **grammi equivalenti di supporto**: grammi
 reali del G-code, più una stima delle sporgenze che il profilo "solo dal piatto" lascia senza supporto
@@ -110,7 +211,9 @@ Per la combinazione consigliata si possono scaricare un **profilo di processo JS
 ElegooSlicer e lo **STL già ruotato e appoggiato sul piatto**. Un terzo pulsante genera con ElegooSlicer
 un **progetto 3MF** che contiene modello e configurazioni. Il profilo deriva da quello abituale ed è
 esportato completo con le impostazioni della variante e dei supporti usate nel confronto reale.
-Il menu **Configurazione da esportare** permette di scegliere qualsiasi combinazione misurata valida,
+Orientamento e variante si scelgono dalle schede **Orientamenti** e **Varianti**. Il menu
+**Configurazione da esportare**, nella sezione espandibile di **Varianti**, permette di scegliere
+qualsiasi combinazione misurata valida,
 con quella consigliata inizialmente selezionata. JSON, STL, 3MF e verifica bobina seguono la scelta manuale.
 Lo STL contiene soltanto geometria e orientamento: a parità di orientamento non cambia tra varianti.
 Per conservare anche layer, pareti, riempimento e filamento usa il progetto 3MF.
@@ -158,7 +261,7 @@ bobine pronte con materiale riconosciuto; un prezzo non annotato non viene mostr
 ## Add-on augura (facoltativo)
 
 [augura](https://github.com/pzfreo/augura) è un secondo analizzatore, basato su build123d e
-OpenCASCADE. È disattivato finché non lo si installa: dalla barra laterale della dashboard
+OpenCASCADE. È disattivato finché non lo si installa: dalla scheda **Impostazioni**
 («Scarica e installa augura») oppure con `addon_augura\installa.bat`. Va in un ambiente a parte,
 `.venv-augura` (circa 700 MB); senza, l'assistente funziona come prima. Con l'add-on:
 
@@ -171,7 +274,7 @@ OpenCASCADE. È disattivato finché non lo si installa: dalla barra laterale del
 
 augura non funziona senza build123d (lo importa anche per gli STL), quindi l'add-on non ha una
 versione leggera. La versione è bloccata a 0.1.8 perché il progetto è pre-alpha.
-Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella la cartella `.venv-augura`).
+Per toglierlo c'è «Rimuovi augura» in **Impostazioni** (oppure si cancella la cartella `.venv-augura`).
 
 ## Personalizzare
 
@@ -182,7 +285,7 @@ Per toglierlo c'è «Rimuovi augura» nella barra laterale (oppure si cancella l
 
 - `lavori/`: una cartella per ogni analisi (file, analisi.json, immagini, sezionamenti, consiglio.md,
   richiesta.json con i campi del modulo, consiglio.json con scelta, modello e costo).
-  Ogni analisi si riprende senza ricalcolare niente: dalla scheda **Analisi passate**, ricaricando la
+  Ogni analisi si riprende senza ricalcolare niente: dalla scheda **Storico**, ricaricando la
   pagina (il lavoro aperto resta nell'indirizzo, `?lavoro=...`) o caricando di nuovo lo stesso file,
   che viene riconosciuto dall'impronta SHA-256 e propone di riaprire l'analisi salvata.
 - `diario.jsonl` e `foto/`: il diario di stampa;

@@ -1,5 +1,6 @@
 """La tua stampante e i tuoi materiali: Claude li usa come contesto. Modificali qui."""
 from pathlib import Path
+import os
 
 CARTELLA = Path(__file__).resolve().parent
 LAVORI = CARTELLA / "lavori"          # una sottocartella per ogni analisi
@@ -7,6 +8,20 @@ DIARIO = CARTELLA / "diario.jsonl"     # una riga per ogni stampa annotata
 BOBINE = CARTELLA / "bobine.json"       # inventario personale, non versionato
 FOTO = CARTELLA / "foto"
 VERSIONE_GEOMETRIA = 5                   # forza il ricalcolo delle analisi con algoritmi precedenti
+
+
+def percorsi_slicer(ambiente=None):
+    """Percorsi configurabili; quelli relativi partono dalla cartella del progetto."""
+    ambiente = os.environ if ambiente is None else ambiente
+
+    def percorso(nome, predefinito):
+        valore = ambiente.get(nome, '').strip() or str(predefinito)
+        p = Path(valore).expanduser()
+        return p if p.is_absolute() else CARTELLA / p
+
+    eseguibile = percorso('STRATO_SLICER_EXE', r'C:\Program Files\ElegooSlicer\elegoo-slicer.exe')
+    profili = percorso('STRATO_SLICER_PROFILES', eseguibile.parent / 'resources' / 'profiles' / 'Elegoo')
+    return eseguibile, profili
 
 STAMPANTE = {
     "modello": "Elegoo Centauri Carbon",

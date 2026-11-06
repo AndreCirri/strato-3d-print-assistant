@@ -1,23 +1,124 @@
-# 3D Printing Assistant
+# STRATO · 3D Printing Assistant
 
-*[Leggi in italiano](README.md). The user interface and the code are in Italian.*
+*[Leggi in italiano](README.md). The current user interface and source code are in Italian.*
 
-Analyses a file to print, asks Claude how to print it and explains the reason behind every choice.
-It keeps a print journal, so the advice improves with experience on your own printer.
+Prepare an FDM model: inspect the part in 3D, compare orientations and process profiles,
+review potential problems and export the selected configuration. Geometric analysis, slicing
+and comparison work without AI; Claude adds explanations and diagnosis only when requested.
 
-## Getting started
+This project was developed with assistance from AI coding agents, including Claude Code and
+OpenAI Codex, under the author's direction.
 
-Double-click `avvia.bat`: the first time it creates the `.venv` environment and installs `requirements.txt`. Or by hand:
+![STRATO analysis result with the 3D model, selected configuration and downloads](docs/screenshots/risultato.png)
 
-```
+## Current interface
+
+The guided workflow **Pezzo → Utilizzo → Priorità → Riepilogo → Analisi → Risultato**
+(model, usage, priority, summary, analysis, result) preserves your choices while navigating.
+**Indietro** (Back), **Continua** (Continue) and **Avvia analisi** (Start analysis) stay visible
+above the main navigation, even on long forms.
+
+- **Upload:** STL, 3MF and OBJ; STEP/STP with the augura add-on. A single panel switches from
+  upload to preview. The **X** removes the file so you can load another model.
+- **Local 3D viewer:** rotation, zoom and panning with Plotly, a dark background, bed grid and
+  XYZ axes. The upload view shows a neutral model; in the result, faces can highlight geometric
+  support requirements: red from the bed, orange on the part, purple inside cavities. These
+  colours do not represent the actual toolpath: always check the slicer preview.
+- **Risultato** (Result): oriented model, configuration, time and material, exports,
+  pre-print checks and optional Claude advice.
+- **Orientamenti** (Orientations): cards with thumbnails, contact area, time and supports.
+  Selecting a card updates the configuration available for export.
+- **Varianti** (Variants): a selectable time/material chart, profile parameters and a comparison
+  table. The chart line is the Pareto front for time and total consumption; surface quality
+  and strength indicators remain separate.
+- **Controlli** (Checks) and **Consiglio e apprendimento** (Advice and learning): geometric
+  checks, toolpath details, images and explanations without crowding the main result.
+
+The bottom navigation opens **Analisi**, **Diario**, **Bobine**, **Storico** and **Impostazioni**
+(Analysis, Journal, Spools, History, Settings). Thumbnails and PNG images for Claude's analysis
+remain available alongside the interactive viewer.
+
+<details>
+<summary>More screenshots: upload, orientations and variants</summary>
+
+### Upload and 3D viewer
+
+![Generated demonstration bracket in STRATO's interactive viewer](docs/screenshots/caricamento-3d.png)
+
+### Orientation comparison
+
+![Orientation cards with thumbnails and measured values](docs/screenshots/orientamenti.png)
+
+### Process variant comparison
+
+![Variant chart and parameters of the selected profile](docs/screenshots/varianti.png)
+
+</details>
+
+Screenshots show the actual Italian interface and a bracket generated for the documentation,
+with local analysis and slicing. They contain no personal models, journal or spool inventory.
+Times and consumption belong to this example and do not apply to other parts.
+
+## Requirements and getting started
+
+Tested on **Windows with Python 3.12**. The current launch scripts and slicer paths are
+Windows-specific. The browser needs WebGL support for the interactive viewer.
+
+- **ElegooSlicer is optional:** it provides G-code time/material values, process comparison and
+  verified print exports. The initial configuration targets **Elegoo Centauri Carbon with a
+  0.4 mm nozzle**, using the profiles in `config.py`; installation paths can be configured as described below.
+- **augura is optional:** it adds STEP/STP support and dedicated checks in a separate environment.
+- **Claude is optional:** requests use the Claude Agent SDK and the authentication available
+  in your Claude Code environment or `ANTHROPIC_API_KEY`. Local analysis needs no authentication.
+
+Double-click `avvia.bat`: on the first launch it creates `.venv` and installs `requirements.txt`.
+Or run these commands from the project directory:
+
+```powershell
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-The page opens at http://localhost:8501 and is reachable only from this PC.
-The dashboard appears within a few seconds: the heavy libraries (trimesh, matplotlib, Claude Agent SDK)
-are loaded only on the first analysis or the first question to Claude.
+Open http://localhost:8501. The server is configured to accept connections only from this PC.
+After updating the project, reinstall dependencies with
+`.venv\Scripts\python.exe -m pip install -r requirements.txt`, even if `.venv` already exists.
+
+Open **Impostazioni** (Settings) to check the printer, slicer availability and filament profile;
+you can also manage augura and select the Claude model there. Trimesh, Plotly, Matplotlib and the
+Claude SDK load when needed for a model, rendering or request, rather than all at startup.
+
+## Verification
+
+From the project directory:
+
+```powershell
+.venv\Scripts\python.exe -m unittest discover -q
+```
+
+The suite covers geometry, persistence, the guided workflow, the 3D viewer and exports.
+Unit tests use synthetic slicer profiles and need no ElegooSlicer installation. Printability checks are sampled or heuristic:
+they do not replace G-code inspection or certify the part's strength.
+
+### Slicer paths and end-to-end verification
+
+Set these environment variables before starting the app to override the defaults in `config.py`:
+
+```powershell
+$env:STRATO_SLICER_EXE = 'D:\ElegooSlicer\elegoo-slicer.exe'
+$env:STRATO_SLICER_PROFILES = 'D:\ElegooSlicer\resources\profiles\Elegoo'
+```
+
+Without an explicit profiles path, it is derived from the executable directory. Relative paths
+start at the project directory. Settings displays the active paths. The optional real-slicer
+verification uses temporary data:
+
+```powershell
+.venv\Scripts\python.exe verifiche/integrazione_worker.py
+```
+
+It explicitly reports SKIP when the slicer is unavailable. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for development and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
 ## How it works
 
@@ -43,18 +144,20 @@ are loaded only on the first analysis or the first question to Claude.
    line). The translation was checked against `elegoo-slicer.exe --orient 1`: same candidates, costs
    with a median deviation of 0.1%, same choice. The page shows who picks what: our ranking, the
    slicer and Claude.
-2. **Images** (`render.py`): the orientations with overhangs coloured
-   (red = support from the bed, purple = from the bed inside a cavity, orange = support on the part).
+2. **Viewer and images** (`visualizzatore.py`, `anteprima.py`, `render.py`): an interactive 3D
+   preview during upload and in the result, orientation thumbnails and PNGs for Claude.
+   Coloured faces distinguish supports from the bed, on the part and inside cavities:
+   these are geometric indications, not a toolpath simulation.
 3. **Advice** (`consiglio.py`): Claude receives the numbers, the images, the printer, the purpose of
    the part and the journal, and answers with orientation, material, settings with their reasons,
    risks, a concept to learn and an experiment.
 4. **Journal** (`diario.py`): after each print you record outcome, problems and photos; Claude can
    diagnose them, and the entries feed into later advice.
 
-Claude is used through the **Claude Agent SDK** with the Claude Code login of this PC (subscription:
-no extra cost, it counts against the usage limits). It can only read files: no commands, no changes.
-To share the tool with other people an API key (`ANTHROPIC_API_KEY`) is needed instead, as Anthropic
-requires for third-party products.
+Claude is used through the **Claude Agent SDK** with your environment's credentials.
+Requests are sent only when you press the advice or diagnosis button. File reads are allowed,
+commands and changes are not; the actual read scope is described under
+[Data sent to Claude](#data-sent-to-claude).
 
 ## Real slicing with ElegooSlicer
 
@@ -70,7 +173,7 @@ and the numbers are read from the G-code:
 
 System profiles inherit from each other (`inherits`): they are merged into complete profiles and left
 marked as "system", otherwise the command line considers them incompatible (code −17).
-The filament profile is chosen in the sidebar. One orientation is sliced in about 2 seconds.
+The filament profile is chosen in **Impostazioni** (Settings). Runtime depends on geometry, profile and computer.
 
 After slicing, the ranking is recomputed in **equivalent grams of support**: real grams from the
 G-code, plus an estimate of the overhangs that the "bed only" profile leaves unsupported (triple
@@ -110,8 +213,9 @@ For the recommended combination you can download a **process profile JSON** impo
 ElegooSlicer and the **STL already rotated and placed on the bed**. A third button uses ElegooSlicer
 to generate a **3MF project** containing the model and configurations. The profile derives from the
 usual one and is exported complete with the variant and support settings used in the real comparison.
-The **Configurazione da esportare** (configuration to export) menu lets you pick any valid measured
-combination, with the recommended one selected at first. JSON, STL, 3MF and the spool check follow the
+Choose the orientation and profile in **Orientamenti** and **Varianti**. The **Configurazione da
+esportare** (configuration to export) menu, in the expandable section of **Varianti**, lets you
+pick any valid measured combination, with the recommended one selected at first. JSON, STL, 3MF and the spool check follow the
 manual choice. The STL contains only geometry and orientation: for the same orientation it does not change
 between variants. To also keep layer, walls, infill and filament, use the 3MF project.
 
@@ -160,8 +264,8 @@ recorded is not shown as zero cost.
 ## augura add-on (optional)
 
 [augura](https://github.com/pzfreo/augura) is a second analyser, based on build123d and OpenCASCADE.
-It is disabled until you install it: from the dashboard sidebar ("Scarica e installa augura") or with
-`addon_augura\installa.bat`. It goes into a separate environment, `.venv-augura` (about 700 MB);
+It is disabled until you install it: use "Scarica e installa augura" in **Impostazioni** (Settings),
+or run `addon_augura\installa.bat`. It goes into a separate environment, `.venv-augura` (about 700 MB);
 without it, the assistant works as before. With the add-on:
 
 - you can load **STEP** files: they are converted to STL for analysis and images;
@@ -172,7 +276,7 @@ without it, the assistant works as before. With the add-on:
 
 augura does not work without build123d (it imports it for STL files too), so the add-on has no light
 version. The version is pinned to 0.1.8 because the project is pre-alpha.
-To remove it use "Rimuovi augura" in the sidebar (or delete the `.venv-augura` folder).
+To remove it, use "Rimuovi augura" in **Impostazioni** (Settings), or delete the `.venv-augura` folder.
 
 ## Customising
 
@@ -183,8 +287,8 @@ To remove it use "Rimuovi augura" in the sidebar (or delete the `.venv-augura` f
 
 - `lavori/`: one folder per analysis (file, analisi.json, images, slices, consiglio.md,
   richiesta.json with the form fields, consiglio.json with choice, model and cost).
-  Every analysis can be reopened without recomputing anything: from the **Analisi passate** (past
-  analyses) tab, by reloading the page (the open job stays in the address, `?lavoro=...`) or by
+  Every analysis can be reopened without recomputing anything: from the **Storico** (History) tab,
+  by reloading the page (the open job stays in the address, `?lavoro=...`) or by
   loading the same file again, which is recognised by its SHA-256 fingerprint and offers to reopen
   the saved analysis.
 - `diario.jsonl` and `foto/`: the print journal;
