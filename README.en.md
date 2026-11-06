@@ -5,6 +5,9 @@
 Analyses a file to print, asks Claude how to print it and explains the reason behind every choice.
 It keeps a print journal, so the advice improves with experience on your own printer.
 
+This project was developed with assistance from AI coding agents, including Claude Code and
+OpenAI Codex, under the author's direction.
+
 ## Getting started
 
 Double-click `avvia.bat`: the first time it creates the `.venv` environment and installs `requirements.txt`. Or by hand:

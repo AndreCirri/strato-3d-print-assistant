@@ -5,6 +5,9 @@
 Analizza un file da stampare, chiede a Claude come stamparlo e spiega il perché di ogni scelta.
 Tiene un diario delle stampe, così i consigli migliorano con l'esperienza sulla tua stampante.
 
+Questo progetto è stato sviluppato con l'assistenza di agenti di programmazione AI, tra cui
+Claude Code e OpenAI Codex, sotto la direzione dell'autore.
+
 ## Avvio
 
 Doppio clic su `avvia.bat`: la prima volta crea l'ambiente `.venv` e installa `requirements.txt`. Oppure a mano:
