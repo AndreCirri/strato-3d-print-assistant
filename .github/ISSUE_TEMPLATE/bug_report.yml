@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in STRATO.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports in English or Italian are welcome.
+        Use synthetic models and remove credentials, personal information and private file paths from attachments and logs.
+        For security vulnerabilities, follow [SECURITY.md](https://github.com/AndreCirri/strato-3d-print-assistant/blob/main/SECURITY.md) instead of posting details publicly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the page, actions and selected options. If needed, attach a small synthetic model in a ZIP archive.
+      placeholder: |
+        1. Open STRATO
+        2. Upload a model
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the STRATO commit or version, operating system, Python version, browser and model format. Include ElegooSlicer or augura versions if relevant.
+      placeholder: |
+        STRATO commit/version:
+        Operating system:
+        Python:
+        Browser:
+        Model format:
+        Optional integrations and versions:
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots and logs
+      description: Attach relevant screenshots or paste the error message. Remove sensitive information before submitting.
