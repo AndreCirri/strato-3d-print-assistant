@@ -3,6 +3,9 @@ __pycache__/
 .venv/
 .venv-augura/
 .worktrees/
+.coverage
+.coverage.*
+/coverage/
 
 # Personal print data and downloaded add-ons
 lavori/

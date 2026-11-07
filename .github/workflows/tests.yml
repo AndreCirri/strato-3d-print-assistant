@@ -17,6 +17,30 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -r requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
-      - run: python -m unittest discover -q
+      - name: Tests with branch coverage
+        run: python -m coverage run -m unittest discover -q
+      - name: Coverage reports
+        if: ${{ always() }}
+        run: |
+          python -m coverage report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m coverage html
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m coverage xml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m coverage json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python verifiche/report_copertura.py
+      - name: Upload coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 14

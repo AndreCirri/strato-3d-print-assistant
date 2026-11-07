@@ -102,6 +102,10 @@ they do not replace G-code inspection or certify the part's strength.
 
 ### Slicer paths and end-to-end verification
 
+CI publishes line and branch coverage and the least-covered modules in each run summary.
+The `coverage-report` artifact contains browsable HTML, JSON and XML, retained for 14 days.
+Local commands and measurement limits: [CONTRIBUTING.md](CONTRIBUTING.md#coverage).
+
 Set these environment variables before starting the app to override the defaults in `config.py`:
 
 ```powershell

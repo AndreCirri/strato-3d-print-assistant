@@ -100,6 +100,10 @@ campionati o euristici: non certificano la resistenza del pezzo.
 
 ### Percorsi dello slicer e verifica completa
 
+La CI pubblica il report di copertura di righe e rami nel riepilogo di ogni esecuzione,
+con i moduli meno coperti. L'artifact `coverage-report` contiene HTML navigabile, JSON e XML
+ed è disponibile per 14 giorni. Comandi locali e limiti della misura: [CONTRIBUTING.md](CONTRIBUTING.md#coverage).
+
 I percorsi predefiniti sono definiti in `config.py`. Per cambiarli, impostare prima dell'avvio:
 
 ```powershell

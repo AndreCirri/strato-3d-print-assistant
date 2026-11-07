@@ -1,0 +1,28 @@
+[run]
+branch = True
+source = .
+relative_files = True
+omit =
+    test_*.py
+    verifiche/*
+    .venv/*
+    .venv-augura/*
+    .worktrees/*
+    .stark/*
+    esterni/*
+    lavori/*
+
+[report]
+include_namespace_packages = True
+show_missing = True
+precision = 1
+sort = Cover
+
+[html]
+directory = coverage/html
+
+[xml]
+output = coverage/coverage.xml
+
+[json]
+output = coverage/coverage.json
