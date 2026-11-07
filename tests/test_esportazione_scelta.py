@@ -15,7 +15,7 @@ import confronto
 import ottimizzazione
 import slicer_cli
 from persistenza import salva_json
-from verifiche.fixture_slicer import slicer_fittizio
+from tests.fixture_slicer import slicer_fittizio
 
 
 class EsportazioneSceltaTest(unittest.TestCase):

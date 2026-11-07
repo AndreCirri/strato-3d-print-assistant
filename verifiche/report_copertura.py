@@ -39,7 +39,7 @@ def riepilogo(dati):
         '## Verifiche fuori da questa misura', '',
         '- Layout, responsive, upload dal browser e rendering WebGL: manca una suite browser in CI.',
         '- ElegooSlicer e progetto 3MF reali: la suite usa fixture; '
-        '`verifiche/integrazione_worker.py` resta una verifica opzionale separata.',
+        '`tests/integrazione_worker.py` resta una verifica opzionale separata.',
         '- Claude e conversione STEP con augura reali: non vengono invocati dalla CI.',
         '', 'Scaricare l\'artifact `coverage-report`: aprire `html/index.html` per i dettagli. '
         'Sono disponibili anche JSON e XML per strumenti esterni.', '',

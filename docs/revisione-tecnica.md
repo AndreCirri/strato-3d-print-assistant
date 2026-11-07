@@ -1,6 +1,8 @@
-# Correzioni dalla revisione critica
+# Revisione tecnica
 
-Ogni fix deve avere verifica mirata e descrizione. Dopo G01, i fix sono raccolti in un commit finale come richiesto dall'utente.
+Registro delle correzioni completate durante la revisione tecnica. Non rappresenta una roadmap;
+le limitazioni riportate descrivono il perimetro delle funzionalità implementate.
+
 
 ## Priorità alta
 
@@ -29,4 +31,4 @@ Ogni fix deve avere verifica mirata e descrizione. Dopo G01, i fix sono raccolti
 
 ## Verifiche
 
-Regressioni in `test_fix_revisione.py`, `test_ricerca.py`, `test_analisi.py`, `test_resistenza.py` e `test_controlli_dettagliati.py`, oltre ai test esistenti. Prova reale ripetibile con `.venv/Scripts/python.exe verifiche/integrazione_worker.py`: directory temporanea isolata, slicer reale, navigazione durante il lavoro, ripresa, persistenza senza Claude, ricerca progressiva, vincoli meccanici e 3MF con 5 pareti. Le funzionalità sono implementate nei limiti descritti sopra; gli indicatori euristici non equivalgono a simulazioni strutturali o certificazioni di stampabilità.
+Regressioni in `tests/test_fix_revisione.py`, `tests/test_ricerca.py`, `tests/test_analisi.py`, `tests/test_resistenza.py` e `tests/test_controlli_dettagliati.py`, oltre ai test esistenti. Prova reale ripetibile con `.venv/Scripts/python.exe tests/integrazione_worker.py`: directory temporanea isolata, slicer reale, navigazione durante il lavoro, ripresa, persistenza senza Claude, vincoli meccanici e 3MF con 5 pareti. Le funzionalità sono implementate nei limiti descritti sopra; gli indicatori euristici non equivalgono a simulazioni strutturali o certificazioni di stampabilità.

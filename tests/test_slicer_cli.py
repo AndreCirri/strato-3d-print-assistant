@@ -4,7 +4,7 @@ from pathlib import Path
 
 import slicer_cli
 import config
-from verifiche.fixture_slicer import slicer_fittizio
+from tests.fixture_slicer import slicer_fittizio
 
 
 class ProfiloUtenteTest(unittest.TestCase):

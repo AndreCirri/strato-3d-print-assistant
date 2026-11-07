@@ -3,7 +3,7 @@ branch = True
 source = .
 relative_files = True
 omit =
-    test_*.py
+    tests/*
     verifiche/*
     .venv/*
     .venv-augura/*

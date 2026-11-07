@@ -19,9 +19,13 @@ limitations. Add meaningful tests when changing analysis, persistence or export 
 
 ## Verification
 
+All tests and synthetic fixtures live in `tests/`. Run commands from the repository root.
+The `test_*.py` modules form the automatic suite; `tests/integrazione_worker.py` is the
+optional real-slicer check and is not included in discovery.
+
 ```powershell
 .venv\Scripts\python.exe -m pip check
-.venv\Scripts\python.exe -m unittest discover -q
+.venv\Scripts\python.exe -m unittest discover -s tests -t . -q
 ```
 
 Unit tests use synthetic profiles and do not require ElegooSlicer, Claude credentials or augura.
@@ -38,7 +42,7 @@ To reproduce locally:
 
 ```powershell
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m coverage run -m unittest discover -q
+.venv\Scripts\python.exe -m coverage run -m unittest discover -s tests -t . -q
 .venv\Scripts\python.exe -m coverage report
 .venv\Scripts\python.exe -m coverage html
 .venv\Scripts\python.exe -m coverage xml
@@ -53,7 +57,7 @@ For the optional end-to-end worker test, install ElegooSlicer with the profiles 
 configure its paths as described in the README, then run:
 
 ```powershell
-.venv\Scripts\python.exe verifiche/integrazione_worker.py
+.venv\Scripts\python.exe tests/integrazione_worker.py
 ```
 
 This test generates a model in a temporary directory, invokes the real slicer, checks cached

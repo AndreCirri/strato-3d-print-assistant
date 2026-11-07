@@ -17,7 +17,7 @@ class PercorsoUiTest(unittest.TestCase):
              patch.object(config, 'FOTO', Path(tmp) / 'foto'), \
              patch('slicer_cli.disponibile', return_value=False), \
              patch('augura_addon.disponibile', return_value=False):
-            app = AppTest.from_file('app.py', default_timeout=30).run()
+            app = AppTest.from_file(str(config.CARTELLA / 'app.py'), default_timeout=30).run()
             self.assertFalse(app.exception)
             self.assertTrue(app.button(key='fase_2').disabled)
             modello = io.BytesIO(trimesh.creation.box().export(file_type='stl'))

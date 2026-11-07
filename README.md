@@ -91,7 +91,7 @@ vengono caricati quando servono al modello, al rendering o alla richiesta, non t
 Dalla cartella del progetto:
 
 ```powershell
-.venv\Scripts\python.exe -m unittest discover -q
+.venv\Scripts\python.exe -m unittest discover -s tests -t . -q
 ```
 
 La suite copre geometria, persistenza, percorso guidato, viewer 3D ed esportazioni.
@@ -116,7 +116,7 @@ I percorsi relativi partono dalla cartella del progetto. Impostazioni mostra i p
 La verifica opzionale con lo slicer reale usa dati temporanei:
 
 ```powershell
-.venv\Scripts\python.exe verifiche/integrazione_worker.py
+.venv\Scripts\python.exe tests/integrazione_worker.py
 ```
 
 Senza slicer la verifica dichiara esplicitamente SKIP. Le istruzioni per contribuire sono in

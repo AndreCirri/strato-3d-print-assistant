@@ -93,7 +93,7 @@ Claude SDK load when needed for a model, rendering or request, rather than all a
 From the project directory:
 
 ```powershell
-.venv\Scripts\python.exe -m unittest discover -q
+.venv\Scripts\python.exe -m unittest discover -s tests -t . -q
 ```
 
 The suite covers geometry, persistence, the guided workflow, the 3D viewer and exports.
@@ -118,7 +118,7 @@ start at the project directory. Settings displays the active paths. The optional
 verification uses temporary data:
 
 ```powershell
-.venv\Scripts\python.exe verifiche/integrazione_worker.py
+.venv\Scripts\python.exe tests/integrazione_worker.py
 ```
 
 It explicitly reports SKIP when the slicer is unavailable. See [CONTRIBUTING.md](CONTRIBUTING.md)
