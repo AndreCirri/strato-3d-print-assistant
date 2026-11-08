@@ -106,9 +106,20 @@ with st.container(key="navigazione"):
 
 with tab_impostazioni:
     st.header("Impostazioni")
-    modello = config.MODELLI[st.selectbox("Modello di Claude", list(config.MODELLI))]
-    st.caption("Usa il login di Claude Code di questo PC: con l'abbonamento non c'è costo extra, "
-               "conta sui limiti d'uso. Il costo mostrato è l'equivalente API.")
+    provider = st.selectbox("Assistente AI", ["Claude", "Codex"], key="provider_ai")
+    if provider == "Codex":
+        from codex_ai import eseguibile
+        modello = st.text_input("Modello Codex (facoltativo)", key="modello_codex",
+                                help="Lascia vuoto per usare il modello predefinito di Codex.").strip()
+        st.caption("Usa le credenziali locali di Codex CLI. Le richieste contano sui limiti o sulla "
+                   "fatturazione dell’autenticazione attiva. Nessun invio prima della tua richiesta.")
+        if not eseguibile():
+            st.warning("Codex CLI non trovato: installalo oppure imposta STRATO_CODEX_EXE.")
+        st.caption("Se necessario, accedi dal terminale con: codex login")
+    else:
+        modello = config.MODELLI[st.selectbox("Modello di Claude", list(config.MODELLI))]
+        st.caption("Usa il login di Claude Code di questo PC: con l'abbonamento non c'è costo extra, "
+                   "conta sui limiti d'uso. Il costo mostrato è l'equivalente API.")
     st.subheader("Stampante")
     st.json(config.STAMPANTE, expanded=False)
     st.subheader("Sezionamento reale")
@@ -170,7 +181,7 @@ def tabella_confronto(dati, cartella):
         su = json.loads(scelta_claude.read_text(encoding="utf-8")).get("su")
         trovato = next((o["id"] for o in dati["orientamenti"] if su is not None
                         and orienta_slicer.direzione_su(o["trasformazione"]) @ su > 0.999), None)
-        scelte.append(("Claude", trovato))
+        scelte.append((json.loads(scelta_claude.read_text(encoding="utf-8")).get("provider", "Claude"), trovato))
     elif (cartella / "consiglio.md").exists():
         scelte.append(("Claude", orientamento_scelto((cartella / "consiglio.md").read_text(encoding="utf-8"))))
     righe = []
@@ -279,7 +290,7 @@ def descrivi_lavoro(cartella, dati):
     parti = [quando]
     if "sezionamento" in dati:
         parti.append(f"sezionato con «{dati['sezionamento']['filamento']}»")
-    parti.append("consiglio di Claude" if (cartella / "consiglio.md").exists() else "senza consiglio")
+    parti.append("consiglio AI" if (cartella / "consiglio.md").exists() else "senza consiglio")
     return " — ".join(parti)
 
 
@@ -522,12 +533,13 @@ def ricalcola_varianti(cartella, opt):
 
 
 def mostra_consiglio(cartella, dati, richiesta_corrente):
-    st.subheader("Il consiglio di Claude")
-    if st.button("Chiedi a Claude come stamparlo", type="primary") or st.session_state.pop("richiedi_consiglio_ui", False):
+    st.subheader(f"Il consiglio di {provider}")
+    if st.button(f"Chiedi a {provider} come stamparlo", type="primary") or st.session_state.pop("richiedi_consiglio_ui", False):
         richiesta = richiesta_corrente
         immagini = [str(p) for p in immagini_lavoro(cartella, dati)]
-        with st.spinner("Claude sta guardando il pezzo (circa 1-2 minuti)..."):
-            testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello)
+        with st.spinner(f"{provider} sta guardando il pezzo..."):
+            testo, costo, errore = chiedi(prompt_consiglio(dati, richiesta, immagini), cartella, modello,
+                                         provider=provider, immagini=immagini)
         if errore or not testo:
             st.error(f"Qualcosa è andato storto: {errore or 'risposta vuota'}")
         else:
@@ -538,11 +550,12 @@ def mostra_consiglio(cartella, dati, richiesta_corrente):
             (cartella / "consiglio.json").write_text(json.dumps({
                 "scelta_id": n,
                 "su": orienta_slicer.direzione_su(o["trasformazione"]).round(4).tolist() if o else None,
-                "modello": modello, "costo_usd": costo,
+                "provider": provider, "modello": modello or "predefinito", "costo_usd": costo,
             }), encoding="utf-8")
     if (cartella / "consiglio.md").exists():
         st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
         info = json.loads((cartella / "consiglio.json").read_text(encoding="utf-8"))                 if (cartella / "consiglio.json").exists() else {}
+        st.caption(f"Consiglio salvato di {info.get('provider', 'Claude')} · Modello {info.get('modello', 'non registrato')}")
         if info.get("costo_usd") is not None:
             st.caption(f"Modello {info.get('modello')}, equivalente API: {info['costo_usd']:.3f} $")
         st.info("Dopo la stampa annota com'è andata nella scheda **Diario di stampa**: "
@@ -646,7 +659,7 @@ with tab_analisi:
                             a, b = st.columns([1, 3])
                             a.caption(etichetta)
                             b.write(valore)
-                        st.info("Geometria e slicer costruiscono il confronto. Claude aggiunge una spiegazione solo su richiesta.")
+                        st.info("Geometria e slicer costruiscono il confronto. L’assistente AI aggiunge una spiegazione solo su richiesta.")
     if fase <= 4:
         with st.container(key="azioni_percorso"):
             indietro, alternativa, avanti = st.columns([1, 2, 1])
@@ -801,13 +814,16 @@ with tab_diario:
                 st.image(p, width=320)
             if v.get("diagnosi"):
                 st.markdown(v["diagnosi"])
-            elif st.button("Chiedi a Claude cosa migliorare", key=f"diag{i}"):
-                with st.spinner("Claude sta guardando la stampa..."):
-                    testo, _, errore = chiedi(prompt_diagnosi(v, v.get("foto", [])), config.CARTELLA, modello)
+                st.caption(f"Diagnosi di {v.get('diagnosi_provider', 'Claude')}")
+            elif st.button(f"Chiedi a {provider} cosa migliorare", key=f"diag{i}"):
+                with st.spinner(f"{provider} sta guardando la stampa..."):
+                    testo, _, errore = chiedi(prompt_diagnosi(v, v.get("foto", [])), config.CARTELLA, modello,
+                                             provider=provider, immagini=v.get("foto", []))
                 if errore or not testo:
                     st.error(f"Qualcosa è andato storto: {errore or 'risposta vuota'}")
                 else:
-                    diario.aggiorna(i, {"diagnosi": testo})
+                    diario.aggiorna(i, {"diagnosi": testo, "diagnosi_provider": provider,
+                                       "diagnosi_modello": modello or "predefinito"})
                     st.rerun()
 
 # ------------------------------------------------------------------ bobine
@@ -865,7 +881,7 @@ with tab_bobine:
 
 # ------------------------------------------------------------------ storico
 with tab_storico:
-    st.caption("Ogni analisi è salvata con immagini, sezionamenti e consiglio di Claude: riaprirla non ricalcola niente.")
+    st.caption("Ogni analisi è salvata con immagini, sezionamenti e consiglio AI: riaprirla non ricalcola niente.")
     salvati = {l["cartella"].name: l["dati"] for l in lavori_salvati()}
     for nome in sorted((p.name for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True):
         cartella = config.LAVORI / nome

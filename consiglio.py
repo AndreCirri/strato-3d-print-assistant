@@ -1,7 +1,6 @@
-"""Le chiamate a Claude tramite il Claude Agent SDK (usa il login di Claude Code di questo PC).
+"""Consigli e diagnosi con Claude Agent SDK oppure Codex CLI.
 
-Claude riceve solo dati già calcolati e le immagini da guardare con lo strumento Read:
-non può modificare file né eseguire comandi.
+Claude usa soltanto Read; Codex riceve le immagini allegate e lavora in sandbox read-only.
 """
 import asyncio
 import json
@@ -106,7 +105,12 @@ def orientamento_scelto(testo):
     return int(m.group(1)) if m else None
 
 
-def chiedi(prompt, cartella, modello="opus"):
+def chiedi(prompt, cartella, modello="opus", provider="Claude", immagini=None):
+    if provider == "Codex":
+        from codex_ai import chiedi_codex
+        return chiedi_codex(prompt, cartella, SISTEMA, modello, immagini)
+    if provider != "Claude":
+        return None, None, f"Assistente non supportato: {provider}"
     return asyncio.run(_chiedi(prompt, Path(cartella), modello))
 
 

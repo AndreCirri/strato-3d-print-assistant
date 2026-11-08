@@ -11,6 +11,22 @@ import config
 
 
 class PercorsoUiTest(unittest.TestCase):
+    def test_scelta_codex_e_ritorno_a_claude(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(config, 'LAVORI', Path(tmp) / 'lavori'), \
+             patch.object(config, 'FOTO', Path(tmp) / 'foto'), \
+             patch('slicer_cli.disponibile', return_value=False), \
+             patch('augura_addon.disponibile', return_value=False):
+            app = AppTest.from_file(str(config.CARTELLA / 'app.py'), default_timeout=30).run()
+            self.assertFalse(app.exception)
+            app.selectbox(key='provider_ai').select('Codex').run()
+            self.assertFalse(app.exception)
+            app.text_input(key='modello_codex').set_value('modello-scelto').run()
+            self.assertEqual(app.text_input(key='modello_codex').value, 'modello-scelto')
+            app.selectbox(key='provider_ai').select('Claude').run()
+            self.assertFalse(app.exception)
+            self.assertTrue(any(w.label == 'Modello di Claude' for w in app.selectbox))
+
     def test_percorso_conserva_contesto_e_blocca_avvio_senza_file(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(config, 'LAVORI', Path(tmp) / 'lavori'), \

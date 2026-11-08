@@ -308,7 +308,7 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
                 with destra:
                     with st.container(key='secondo_parere', border=True):
                         st.html('<div class="r-ai-copy"><h3>Un secondo parere, con il perché.</h3>'
-                                '<p>La geometria dà i numeri. Claude può aiutarti a interpretarli, valutare i rischi e scegliere una prova utile.</p>'
+                                '<p>La geometria dà i numeri. L’assistente AI scelto nelle Impostazioni può aiutarti a interpretarli, valutare i rischi e scegliere una prova utile.</p>'
                                 '<small>Nessun invio automatico. La stampa non dipende dall’AI.</small></div>')
                         st.button('Chiedi un consiglio ↗', type='primary', on_click=chiedi_consiglio,
                                   args=(navigazione,))

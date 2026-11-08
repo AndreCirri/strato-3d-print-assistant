@@ -4,7 +4,20 @@
 
 Prepare an FDM model: inspect the part in 3D, compare orientations and process profiles,
 review potential problems and export the selected configuration. Geometric analysis, slicing
-and comparison work without AI; Claude adds explanations and diagnosis only when requested.
+and comparison work without AI; Claude or Codex adds explanations and diagnosis only when requested.
+
+### Optional Codex integration
+
+Select **Impostazioni → Assistente AI → Codex** to use Codex for advice and diary diagnosis.
+Install Codex CLI and authenticate with `codex login`. STRATO searches PATH and the local
+Windows Codex app installation; `STRATO_CODEX_EXE` can specify the executable explicitly.
+Leave the optional model field empty to use the CLI default. Requests run with `codex exec`,
+a read-only sandbox, ephemeral sessions and user configuration disabled. Analysis, printer
+context, recent diary entries and attached images are sent to OpenAI only on an explicit
+request. The working directory does not restrict file reads. Usage limits and billing depend
+on the CLI authentication; STRATO does not report an estimated API cost for Codex.
+Saved advice records its provider; generating new advice replaces the current job's advice.
+See the Italian README for complete integration details.
 
 This project was developed with assistance from AI coding agents, including Claude Code and
 OpenAI Codex, under the author's direction.
