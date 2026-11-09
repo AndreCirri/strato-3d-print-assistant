@@ -1,4 +1,6 @@
 """Presentazione STRATO: stile e navigazione, senza logica di analisi."""
+from base64 import b64encode
+from functools import lru_cache
 from html import escape
 from pathlib import Path
 
@@ -9,8 +11,21 @@ def imposta_stile():
     st.html(f"<style>{Path(__file__).with_name('ui.css').read_text(encoding='utf-8')}</style>")
 
 
+@lru_cache(maxsize=1)
+def _font_caricamento():
+    font = Path(__file__).parent / "assets" / "PlusJakartaSans-Variable.ttf"
+    return b64encode(font.read_bytes()).decode("ascii")
+
+
+def stile_caricamento():
+    css = Path(__file__).with_name("caricamento.css").read_text(encoding="utf-8")
+    st.html(f"""<style>@font-face {{ font-family:'Plus Jakarta Sans'; font-weight:200 800;
+        src:url(data:font/ttf;base64,{_font_caricamento()}) format('truetype'); }}{css}</style>""")
+
+
 def intestazione(stampante):
-    st.html(f'''<header class="strato-header"><div class="strato-brand">STRATO<span>°</span>
+    st.html(f'''<header class="upload-header" hidden><b>STRATO°</b></header>
+        <header class="strato-header"><div class="strato-brand">STRATO<span>°</span>
         <small>ASSISTENTE DI STAMPA 3D</small></div>
         <div class="strato-status"><span>STUDIO / 02</span> ● Locale · {escape(stampante)}</div></header>''')
 
@@ -20,7 +35,8 @@ def vai_fase(fase):
 
 
 def percorso(fase, ha_lavoro):
-    st.html('<div class="percorso-etichetta">IL PERCORSO DEL TUO PEZZO</div>')
+    st.html('<div class="percorso-etichetta">IL PERCORSO DEL TUO PEZZO'
+            + ('<span>Fase 01 di 06</span>' if fase == 1 else '') + '</div>')
     with st.container(key="percorso"):
         for n, (colonna, nome) in enumerate(zip(st.columns(6),
                 ("Pezzo", "Utilizzo", "Priorità", "Riepilogo", "Analisi", "Risultato")), 1):
@@ -32,11 +48,7 @@ def percorso(fase, ha_lavoro):
 
 
 def titolo_fase(fase):
-    if fase == 1:
-        st.html('<div class="fase-intestazione fase-modello"><h1>Carica il modello</h1></div>')
-        return
-    titoli = {1: ("Partiamo dal tuo pezzo.", "Un modello, qualche scelta. Al resto pensa il tuo banco di lavoro."),
-              2: ("Raccontaci come lo userai.", "Funzione, ambiente e vincoli aiutano a interpretare i numeri."),
+    titoli = {2: ("Raccontaci come lo userai.", "Funzione, ambiente e vincoli aiutano a interpretare i numeri."),
               3: ("Che cosa conta di più?", "Una priorità chiara rende più leggibili i compromessi."),
               4: ("Tutto pronto per l’analisi.", "Controlla le scelte prima di avviare il lavoro."),
               5: ("Il tuo pezzo prende forma.", "Analisi locale · puoi consultare diario e bobine durante l’attesa."),
@@ -81,14 +93,53 @@ def selezione_modello(file, addon):
             with st.container(key="modello_intestazione"):
                 nome, azione = st.columns([12, 1])
                 nome.write(file.name)
-                azione.button("Rimuovi modello", icon=":material/close:", key="rimuovi_modello",
+                azione.button("Rimuovi modello", key="rimuovi_modello",
                               help="Rimuovi il file per caricare un altro modello",
                               on_click=rimuovi_modello)
             anteprima_modello(file, key="modello3d_caricamento")
         else:
             formati = ["stl", "3mf", "obj"] + (["step", "stp"] if addon else [])
-            st.file_uploader("File da stampare", type=formati, key="upload_ui",
+            limite = int(st.get_option("server.maxUploadSize"))
+            st.html(f'''<div class="upload-stage">
+                <div class="upload-meta"><span>STRATO° / MODELLO</span><span>MAX FILE: {limite} MB</span></div>
+                <div class="upload-cube" aria-hidden="true"></div>
+                <strong>Trascina qui il file 3D oppure sfoglia i file</strong>
+                <div class="upload-description">Il modello resta sul tuo PC durante l’analisi geometrica e lo slicing.</div>
+                <div class="upload-cta" aria-hidden="true">Seleziona file dal computer</div>
+                <div class="upload-formats"><span>STL</span><span>3MF</span><span>OBJ</span><span>STEP*</span>
+                <small>fino a {limite} MB</small></div>
+                <div class="upload-footnote">* STEP/STP richiede l’add-on augura.</div></div>''')
+            st.file_uploader("Seleziona file dal computer", type=formati, key="upload_ui",
                              on_change=carica_modello, label_visibility="collapsed")
+
+
+def titolo_caricamento(stampante):
+    modello = escape(stampante["modello"].removeprefix("Elegoo "))
+    ugello = escape(stampante["ugello"])
+    st.html(f'''<div class="upload-title"><div><h1>Carica il modello 3D</h1>
+        <p>Importa il pezzo per confrontare orientamenti, tempi e consumo di filamento.</p></div>
+        <div class="upload-profile"><small>PROFILO STAMPANTE</small><b>{modello} · ugello {ugello}</b></div></div>''')
+
+
+def piatto_caricamento(stampante, volume):
+    dimensioni = " × ".join(str(v) for v in volume)
+    st.html(f'''<section class="upload-panel upload-bed"><h2>Piatto di stampa</h2>
+        <div class="upload-volume"><small>VOLUME UTILE</small>
+        <span>{dimensioni} mm</span></div>
+        <dl><div><dt>Stampante</dt><dd>{escape(stampante["modello"])}</dd></div>
+        <div><dt>Ugello</dt><dd>{escape(stampante["ugello"])}</dd></div></dl></section>''')
+
+
+def azioni_caricamento(file):
+    with st.container(key="upload_actions"):
+        back, studio, status, next_step = st.columns([124, 696, 235, 235], gap="small")
+        back.button("← Indietro", disabled=True, key="percorso_indietro", width="stretch")
+        studio.html('<div class="upload-studio">Studio 02 · Analisi locale</div>')
+        stato = "FILE SELEZIONATO" if file else "NESSUN FILE SELEZIONATO"
+        dettaglio = escape(file.name) if file else "Carica un modello per continuare"
+        status.html(f'<div class="upload-state"><small>{stato}</small><span>{dettaglio}</span></div>')
+        next_step.button("Continua a Utilizzo →", type="primary", disabled=not file,
+                         on_click=vai_fase, args=(2,), key="percorso_avanti", width="stretch")
 
 
 @st.cache_data(show_spinner=False, max_entries=8)

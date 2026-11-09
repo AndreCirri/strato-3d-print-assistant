@@ -358,3 +358,10 @@ codice sorgente disponibile per chi le usa.
 
 `orienta_slicer.py` è una traduzione in Python di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
 anch'esso rilasciato sotto AGPL-3.0; i file originali sono indicati nell'intestazione del modulo.
+
+
+## Mockup e componenti FigCraft
+
+Il progetto modificabile e le istruzioni per riprendere su un altro PC sono in
+[design/README.md](design/README.md). Apri [design/strato-ui.figcraft](design/strato-ui.figcraft)
+con FigCraft; il font Plus Jakarta Sans e la licenza sono inclusi in assets/.

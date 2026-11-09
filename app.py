@@ -568,7 +568,12 @@ with tab_analisi:
     fase = st.session_state.setdefault("fase_ui", 6 if "lavoro" in st.session_state else 1)
     if "lavoro" in st.session_state and lavorazioni.stato(Path(st.session_state["lavoro"])).get("stato") == "in corso":
         fase = 5
-    if fase != 6:
+    if fase == 1:
+        ui.stile_caricamento()
+        with st.container(key="upload_path"):
+            ui.percorso(fase, "lavoro" in st.session_state)
+        ui.titolo_caricamento(config.STAMPANTE)
+    elif fase != 6:
         with st.container(key="introduzione_analisi"):
             ui.percorso(fase, "lavoro" in st.session_state)
             ui.titolo_fase(fase)
@@ -576,7 +581,15 @@ with tab_analisi:
     priorita = st.session_state["priorita"]
     sollecitazione = st.session_state["sollecitazione"]
     if fase == 1:
-        ui.selezione_modello(file, ADDON)
+        with st.container(key="upload_layout"):
+            modello, parametri = st.columns([926, 450])
+            with modello:
+                ui.selezione_modello(file, ADDON)
+                st.html('<aside class="upload-local">Geometria e slicer lavorano in locale. '
+                        'Claude o Codex intervengono solo su richiesta.</aside>')
+            with parametri:
+                ui.piatto_caricamento(config.STAMPANTE, config.VOLUME_STAMPA)
+        ui.azioni_caricamento(file)
     elif fase <= 4:
         if file:
             with st.container(key="anteprima_mobile"):
@@ -660,7 +673,7 @@ with tab_analisi:
                             a.caption(etichetta)
                             b.write(valore)
                         st.info("Geometria e slicer costruiscono il confronto. L’assistente AI aggiunge una spiegazione solo su richiesta.")
-    if fase <= 4:
+    if 2 <= fase <= 4:
         with st.container(key="azioni_percorso"):
             indietro, alternativa, avanti = st.columns([1, 2, 1])
             indietro.button("← Indietro", disabled=fase == 1, on_click=ui.vai_fase,
