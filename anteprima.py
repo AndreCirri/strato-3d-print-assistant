@@ -33,7 +33,7 @@ def carica(contenuto, estensione):
     return mesh
 
 
-def crea(contenuto, estensione, trasformazione=None, sfondo='#f7f7f4', zoom=1):
+def crea(contenuto, estensione, trasformazione=None, sfondo='#f8f9fa', zoom=1):
     # Import pesanti solo dopo la selezione di un modello.
     import numpy as np
     import trimesh
@@ -60,7 +60,7 @@ def crea(contenuto, estensione, trasformazione=None, sfondo='#f7f7f4', zoom=1):
     luce = np.array([.35, -.45, .82])
     luce /= np.linalg.norm(luce)
     intensita = .55 + .45 * np.clip(mesh.face_normals @ luce, 0, 1)
-    colori = np.column_stack([intensita * c for c in (.57, .63, .54)])
+    colori = np.column_stack([intensita * c for c in (.58, .64, .72)])
     occhio = np.array([np.cos(np.radians(25)) * np.cos(np.radians(-55)),
                        np.cos(np.radians(25)) * np.sin(np.radians(-55)), np.sin(np.radians(25))])
     visibili = mesh.face_normals @ occhio > 0

@@ -36,7 +36,7 @@ class AvanzamentoTest(unittest.TestCase):
             self.assertEqual(stato['stato'], 'errore')
             self.assertEqual(stato['frazione'], .4)
 
-    def test_dashboard_mostra_barra_e_tutte_le_schede(self):
+    def test_dashboard_mostra_avanzamento_e_link_alle_pagine(self):
         from streamlit.testing.v1 import AppTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -49,7 +49,7 @@ class AvanzamentoTest(unittest.TestCase):
                 app.session_state['lavoro'] = str(lavoro)
                 app.run()
                 self.assertFalse(app.exception)
-                self.assertEqual([tab.label for tab in app.tabs],
+                self.assertEqual([link.proto.label for link in app.get('page_link')],
                              ["Analisi", "Diario", "Bobine", "Storico", "Impostazioni"])
                 barre = app.get('progress')
                 self.assertEqual(len(barre), 1)

@@ -9,9 +9,11 @@ and comparison work without AI; Claude or Codex adds explanations and diagnosis 
 ### Optional Codex integration
 
 Select **Impostazioni → Assistente AI → Codex** to use Codex for advice and diary diagnosis.
-Install Codex CLI and authenticate with `codex login`. STRATO searches PATH and the local
-Windows Codex app installation; `STRATO_CODEX_EXE` can specify the executable explicitly.
-Leave the optional model field empty to use the CLI default. Requests run with `codex exec`,
+Install Codex CLI and authenticate with `codex login`. STRATO searches PATH, `~/.local/bin`,
+the `standalone` and `app-server-daemon` packages in `CODEX_HOME` (default `~/.codex`),
+and the local Windows Codex app installation. `STRATO_CODEX_EXE` can specify the executable explicitly.
+The model dropdown offers Sol 6.1, Terra 6.1, Luna, Astra and Sol 6; select **Predefinito della CLI**
+to use the CLI default. Model availability depends on the Codex account. Requests run with `codex exec`,
 a read-only sandbox, ephemeral sessions and user configuration disabled. Analysis, printer
 context, recent diary entries and attached images are sent to OpenAI only on an explicit
 request. The working directory does not restrict file reads. Usage limits and billing depend

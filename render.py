@@ -1,15 +1,22 @@
 """Immagini del pezzo orientato, con le sporgenze colorate (per te e per Claude)."""
+from pathlib import Path
+
 import numpy as np
 import trimesh
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from analisi import classifica_facce
 
+font_manager.fontManager.addfont(Path(__file__).parent / 'assets' / 'PlusJakartaSans-Variable.ttf')
+plt.rcParams.update({'font.family': 'Plus Jakarta Sans', 'text.color': '#191C1D',
+                     'figure.facecolor': '#F8F9FA', 'axes.facecolor': '#F8F9FA'})
+
 FACCE_MAX = 12000                         # oltre si alleggerisce la mesh solo per disegnarla
-COLORI = {0: (0.80, 0.82, 0.86), 1: (0.86, 0.22, 0.20), 2: (0.98, 0.62, 0.10), 3: (0.58, 0.30, 0.72)}
+COLORI = {0: (0.58, 0.64, 0.72), 1: (0.93, 0.41, 0.43), 2: (1.0, 0.41, 0.15), 3: (0.68, 0.51, 0.93)}
 LUCE = np.array([0.35, -0.45, 0.82]) / np.linalg.norm([0.35, -0.45, 0.82])
 
 

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -29,11 +30,14 @@ from validazione import riga_valida
 import time
 import ui
 import risultati
+import impostazioni_ui
+import diario_ui
+import bobine_ui
+import storico_ui
 from consiglio import chiedi, orientamento_scelto, prompt_consiglio, prompt_diagnosi
 
-st.set_page_config(page_title="STRATO · Assistente di stampa 3D", page_icon="◒", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="STRATO · Assistente di stampa 3D", layout="wide", initial_sidebar_state="collapsed")
 ui.imposta_stile()
-ui.intestazione(config.STAMPANTE["modello"])
 for d in (config.LAVORI, config.FOTO):
     d.mkdir(exist_ok=True)
 
@@ -63,18 +67,27 @@ def mostra_avanzamento(cartella):
     frazione = max(0., min(.99, stato.get('frazione', 0.)))
     fase = stato.get('fase', 'Avvio')
     completati, totale = stato.get('completati'), stato.get('totale')
-    passaggi = f' — {completati} di {totale} completati' if totale is not None else ''
-    st.progress(frazione, text=f'{int(frazione*100)}% — {fase}{passaggi}')
-    trascorsi = max(0, int(time.time() - stato.get('inizio', time.time())))
-    st.caption(f'Tempo trascorso: {trascorsi//60} min {trascorsi%60:02d} s. '
-               'Aggiornamento automatico ogni 2 secondi. La percentuale indica i passaggi, non il tempo residuo.')
-    if 'frazione' not in stato:
-        st.caption('Lavorazione avviata con la versione precedente: il dettaglio percentuale sarà disponibile dal prossimo avvio.')
+    with st.container(key="analisi_avanzamento"):
+        st.subheader(fase)
+        passaggi_testo = f' — {completati} di {totale} completati' if totale is not None else ''
+        st.progress(frazione, text=f'{int(frazione*100)}% — {fase}{passaggi_testo}')
+        percentuale, passaggi = st.columns(2)
+        percentuale.metric('Avanzamento', f'{int(frazione*100)}%')
+        if completati is not None and totale is not None:
+            passaggi.metric('Passaggi completati', f'{completati} di {totale}')
+        trascorsi = max(0, int(time.time() - stato.get('inizio', time.time())))
+        st.caption(f'Tempo trascorso: {trascorsi//60} min {trascorsi%60:02d} s. '
+                   'Aggiornamento automatico ogni 2 secondi. La percentuale indica i passaggi, non il tempo residuo.')
+        if 'frazione' not in stato:
+            st.caption('Lavorazione avviata con la versione precedente: il dettaglio percentuale sarà disponibile dal prossimo avvio.')
 
 
-def apri_lavoro(cartella):
+def apri_lavoro(cartella, *, conserva_modello=False):
     """Apre un lavoro salvato: niente da ricalcolare, si rileggono i file della sua cartella.
     I campi del modulo si ripristinano al giro successivo, prima che i widget vengano creati."""
+    if not conserva_modello:
+        st.session_state.pop("modello_ui", None)
+        st.session_state.pop("upload_ui", None)
     st.session_state["fase_ui"] = 6
     st.session_state["lavoro"] = str(cartella)
     st.query_params["lavoro"] = cartella.name     # nell'URL: il lavoro resta aperto anche ricaricando la pagina
@@ -99,74 +112,11 @@ st.session_state.pop("da_ripristinare", None)
 for campo, chiave in CAMPI_RICHIESTA.items():
     st.session_state[chiave] = st.session_state.get(chiave, DEFAULT_RICHIESTA.get(campo))
 
-with st.container(key="navigazione"):
-    tab_analisi, tab_diario, tab_bobine, tab_storico, tab_impostazioni = st.tabs(
-        ["Analisi", "Diario", "Bobine", "Storico", "Impostazioni"]
-    )
-
-with tab_impostazioni:
-    st.header("Impostazioni")
-    provider = st.selectbox("Assistente AI", ["Claude", "Codex"], key="provider_ai")
-    if provider == "Codex":
-        from codex_ai import eseguibile
-        modello = st.text_input("Modello Codex (facoltativo)", key="modello_codex",
-                                help="Lascia vuoto per usare il modello predefinito di Codex.").strip()
-        st.caption("Usa le credenziali locali di Codex CLI. Le richieste contano sui limiti o sulla "
-                   "fatturazione dell’autenticazione attiva. Nessun invio prima della tua richiesta.")
-        if not eseguibile():
-            st.warning("Codex CLI non trovato: installalo oppure imposta STRATO_CODEX_EXE.")
-        st.caption("Se necessario, accedi dal terminale con: codex login")
-    else:
-        modello = config.MODELLI[st.selectbox("Modello di Claude", list(config.MODELLI))]
-        st.caption("Usa il login di Claude Code di questo PC: con l'abbonamento non c'è costo extra, "
-                   "conta sui limiti d'uso. Il costo mostrato è l'equivalente API.")
-    st.subheader("Stampante")
-    st.json(config.STAMPANTE, expanded=False)
-    st.subheader("Sezionamento reale")
-    with st.expander("Percorsi dello slicer"):
-        st.text(f"Eseguibile: {slicer_cli.ESEGUIBILE}\nProfili: {slicer_cli.PROFILI}")
-        st.caption("Per cambiarli imposta STRATO_SLICER_EXE e STRATO_SLICER_PROFILES prima di avviare l’app.")
-    SLICER = slicer_cli.disponibile()
-    if SLICER:
-        filamenti_slicer = slicer_cli.filamenti_disponibili()
-        if st.session_state.get("profilo_filamento") not in filamenti_slicer:
-            st.session_state["profilo_filamento"] = (config.PROFILO_FILAMENTO
-                if config.PROFILO_FILAMENTO in filamenti_slicer else filamenti_slicer[0])
-        profilo_filamento = st.selectbox("Profilo filamento", filamenti_slicer,
-                                         key="profilo_filamento")
-        st.caption(f"ElegooSlicer seziona ogni orientamento con «{config.PROFILO_PROCESSO}» e supporti ad albero "
-                   f"solo dal piatto (soglia {config.SOGLIA_SUPPORTI}°): grammi e tempi veri, non stime.")
-    else:
-        st.caption("ElegooSlicer non trovato: niente sezionamento reale.")
-    st.subheader("Add-on")
-    ADDON = augura_addon.disponibile()
-    if ADDON:
-        st.success("augura attivo: file STEP e controlli esatti (solo sugli STEP)")
-        with st.popover("Rimuovi augura"):
-            st.caption("Cancella l'ambiente `.venv-augura` (circa 700 MB). Si potrà reinstallare da qui.")
-            if st.button("Conferma la rimozione", type="primary"):
-                try:
-                    augura_addon.rimuovi()
-                except OSError as e:
-                    st.error(f"Rimozione non riuscita: {e}")
-                else:
-                    st.rerun()
-    else:
-        st.caption("augura non installato (facoltativo). Aggiunge i file STEP e controlli esatti su di essi.")
-        if st.button(f"Scarica e installa augura {augura_addon.VERSIONE} (circa 700 MB)"):
-            with st.status("Installazione di augura: può volerci qualche minuto...", expanded=True) as stato:
-                registro = st.empty()
-                righe = []
-                try:
-                    for riga in augura_addon.installa():
-                        righe = (righe + [riga])[-15:]
-                        registro.code("\n".join(righe), language=None)
-                except Exception as e:
-                    stato.update(label=f"Installazione non riuscita: {e}", state="error")
-                else:
-                    stato.update(label="augura installato", state="complete")
-                    st.rerun()
-
+# Conserva le preferenze anche quando i relativi widget non sono nella pagina corrente.
+for chiave in ("provider_ai", "modello_codex", "modello_claude"):
+    if chiave in st.session_state:
+        st.session_state[chiave] = st.session_state[chiave]
+provider, modello, SLICER, profilo_filamento, ADDON = impostazioni_ui.valori_attivi()
 
 
 def tabella_confronto(dati, cartella):
@@ -363,9 +313,8 @@ def mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione):
     dati["stampabilita_avanzata"] = controlli_stampa
     st.markdown("**Controlli avanzati di stampabilità**")
     if controlli_stampa["controlli"]:
-        icone = {"errore": "🔴", "avviso": "🟠", "info": "🔵"}
         tabella_controlli = pd.DataFrame([{
-            "livello": icone[r["gravita"]], "controllo": r["controllo"],
+            "livello": r["gravita"].capitalize(), "controllo": r["controllo"],
             "orientamento": r.get('orientamento_id'),
             "problema": r["messaggio"], "cosa fare": r["azione"],
         } for r in controlli_stampa["controlli"]])
@@ -426,7 +375,7 @@ def mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione):
     if "augura" in dati:
         au = dati["augura"]
         st.markdown(f"**Controlli di augura** — geometria {au['geometria']}")
-        gravita = {"error": "🔴 errore", "warning": "🟠 avviso", "info": "🔵 info"}
+        gravita = {"error": "Errore", "warning": "Avviso", "info": "Info"}
         righe = [{"livello": gravita.get(f["severity"], f["severity"]), "controllo": f["kind"], "messaggio": f["message"]}
                  for f in au.get("controlli_come_nel_file", [])]
         if righe:
@@ -564,58 +513,92 @@ def mostra_consiglio(cartella, dati, richiesta_corrente):
 
 
 # ------------------------------------------------------------------ analisi
-with tab_analisi:
+def mostra_analisi():
+    if "lavoro" in st.session_state:
+        st.query_params["lavoro"] = Path(st.session_state["lavoro"]).name
     fase = st.session_state.setdefault("fase_ui", 6 if "lavoro" in st.session_state else 1)
-    if "lavoro" in st.session_state and lavorazioni.stato(Path(st.session_state["lavoro"])).get("stato") == "in corso":
+    cartella_lavoro = Path(st.session_state["lavoro"]) if "lavoro" in st.session_state else None
+    stato_lavoro = lavorazioni.stato(cartella_lavoro) if cartella_lavoro else {}
+    lavorazione_attiva = stato_lavoro.get("stato") == "in corso"
+    if lavorazione_attiva:
         fase = 5
-    if fase == 1:
-        ui.stile_caricamento()
-        with st.container(key="upload_path"):
-            ui.percorso(fase, "lavoro" in st.session_state)
-        ui.titolo_caricamento(config.STAMPANTE)
-    elif fase != 6:
-        with st.container(key="introduzione_analisi"):
-            ui.percorso(fase, "lavoro" in st.session_state)
-            ui.titolo_fase(fase)
     file = st.session_state.get("modello_ui")
+    file_contesto = file if fase < 5 else None
+    if file_contesto is None and cartella_lavoro and fase >= 5:
+        ingresso = cartella_lavoro / "ingresso.json"
+        if ingresso.exists():
+            nome_modello = json.loads(ingresso.read_text(encoding="utf-8")).get("file", "")
+            modello_salvato = cartella_lavoro / Path(nome_modello).name
+        else:
+            modello_salvato = next((p for p in cartella_lavoro.iterdir()
+                                    if p.suffix.lower() in FORMATI_MODELLO), None)
+        if modello_salvato and modello_salvato.is_file():
+            file_contesto = modello_salvato
+    if fase == 1:
+        stato_header = ("FILE SELEZIONATO", file.name) if file else (
+            "NESSUN FILE SELEZIONATO", "Carica un modello per continuare")
+    elif fase == 5:
+        stato_header = "La percentuale indica i passaggi completati, non il tempo residuo."
+    elif fase == 6:
+        stato_header = ("LAVORAZIONE INTERROTTA" if stato_lavoro.get("stato") in ("errore", "interrotta")
+                        else "RISULTATO SALVATO", file_contesto.name if file_contesto else "")
+    elif fase == 4:
+        stato_header = "Geometria e slicer lavorano in locale. Il consiglio AI resta facoltativo."
+    else:
+        stato_header = "Le scelte restano salvate durante il percorso."
+    indietro, alternativa, avanti = ui.barra_intestazione("analisi", stato=stato_header)
+    if fase <= 4:
+        if fase > 1:
+            indietro.button("← Indietro", on_click=ui.vai_fase,
+                            args=(fase - 1,), key="percorso_indietro", width="stretch")
+        if fase < 4:
+            etichetta_avanti = {1: "Continua a Utilizzo →", 2: "Continua a Priorità →",
+                               3: "Vai al riepilogo →"}[fase]
+            avanti.button(etichetta_avanti, type="primary", disabled=not file,
+                          on_click=ui.vai_fase, args=(fase + 1,),
+                          key="percorso_avanti", width="stretch")
+    with st.container(key="upload_path"):
+        ui.percorso(fase, "lavoro" in st.session_state)
+    if fase == 1:
+        ui.titolo_caricamento(config.STAMPANTE)
+    else:
+        ui.titolo_fase(fase)
     priorita = st.session_state["priorita"]
     sollecitazione = st.session_state["sollecitazione"]
     if fase == 1:
         with st.container(key="upload_layout"):
-            modello, parametri = st.columns([926, 450])
-            with modello:
+            colonna_modello, parametri = st.columns([926, 450])
+            with colonna_modello:
                 ui.selezione_modello(file, ADDON)
                 st.html('<aside class="upload-local">Geometria e slicer lavorano in locale. '
                         'Claude o Codex intervengono solo su richiesta.</aside>')
             with parametri:
                 ui.piatto_caricamento(config.STAMPANTE, config.VOLUME_STAMPA)
-        ui.azioni_caricamento(file)
     elif fase <= 4:
-        if file:
-            with st.container(key="anteprima_mobile"):
-                ui.anteprima_modello(file)
         with st.container(key="wizard_layout"):
-            principale, contesto = st.columns([1.3, .8], gap="large")
-            with contesto:
-                ui.contesto_pezzo(file, config.STAMPANTE, st.session_state["filamenti"])
-            with principale:
+            principale, contesto = st.columns([926, 450], gap="large")
+            with principale, st.container(key="wizard_main"):
                 if fase == 2:
-                    ui.contesto_utilizzo()
-                    c1, c2 = st.columns(2)
+                    st.subheader("Utilizzo del pezzo")
                     # valori iniziali in session_state e non come default dei widget: così la riapertura può sovrascriverli
                     st.session_state.setdefault("filamenti", ["PLA", "PETG"])
+                    scopo = st.text_area("A cosa serve, dove va montato", key="scopo",
+                                         placeholder="es. pulsante della lavatrice: la linguetta fa da molla, il perno preme l'interruttore")
+                    c1, c2 = st.columns(2)
                     with c1:
-                        scopo = st.text_area("A cosa serve, dove va montato", key="scopo",
-                                             placeholder="es. pulsante della lavatrice: la linguetta fa da molla, il perno preme l'interruttore")
                         uso = st.selectbox("Tipo di pezzo", ["funzionale / meccanico", "estetico", "prototipo veloce", "misto"], key="uso")
                     with c2:
                         ambiente = st.multiselect("Condizioni d'uso", ["caldo oltre 50 °C", "umidità o acqua", "all'aperto (sole)",
                                                                        "sforzi ripetuti / flessione", "urti", "contatto con alimenti"],
-                                                  key="ambiente")
-                        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, key="filamenti")
-                        multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti",
-                                                     key="multimateriale")
+                                                  key="ambiente", placeholder="Seleziona le condizioni d’uso…")
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        filamenti = st.multiselect("Filamenti che hai", config.FILAMENTI, key="filamenti",
+                                                   placeholder="Seleziona i filamenti disponibili…")
+                    with c4:
                         note = st.text_input("Altro (lato da tenere bello, problemi avuti, ecc.)", key="note")
+                    multimateriale = st.checkbox("Ho un sistema multimateriale (es. CANVAS) per l'interfaccia dei supporti",
+                                                 key="multimateriale")
 
                     with st.expander("Carichi e resistenza degli strati"):
                         m1, m2, m3 = st.columns(3)
@@ -647,18 +630,28 @@ with tab_analisi:
                                    'Punti distinti definiscono l’asse fissaggio–carico per flessione/torsione. Il confronto usa tensioni ideali, non una FEM. '
                                    'Gli urti richiedono una verifica separata.')
                 if fase == 3:
-                    with st.container(border=True):
-                        priorita = st.selectbox("Cosa conta di più", ["robustezza e rigidità", "superficie bella", "precisione delle misure",
-                                                                      "velocità di stampa", "poco materiale"], key="priorita")
-                    with st.expander('Ricerca dei parametri'):
+                    st.subheader("Scegli la priorità")
+                    descrizioni_priorita = {
+                        "robustezza e rigidità": "Privilegia orientamento e processo per un pezzo funzionale.",
+                        "superficie bella": "Dai più peso alla finitura delle superfici visibili.",
+                        "precisione delle misure": "Concentrati sui dettagli e sulle quote del modello.",
+                        "velocità di stampa": "Riduci il tempo stimato dallo slicer.",
+                        "poco materiale": "Riduci il consumo totale di filamento.",
+                    }
+                    with st.container(key="priorita_scelte"):
+                        priorita = st.radio("Cosa conta di più", list(descrizioni_priorita), key="priorita",
+                                            format_func=lambda valore: f"**{valore[0].upper() + valore[1:]}**  \n{descrizioni_priorita[valore]}",
+                                            label_visibility="collapsed", width="stretch")
+                    with st.container(key="ricerca_parametri"):
+                        st.markdown("**Ricerca dei parametri**")
                         st.session_state.setdefault('budget_ricerca', 4)
                         st.number_input('Prove aggiuntive oltre i preset', min_value=0, max_value=8, key='budget_ricerca')
                         st.caption('La ricerca modifica un parametro alla volta attorno alle configurazioni migliori. '
                                    'Il compromesso pesa tempo, materiale, layer e robustezza attesa al 25% ciascuno.')
 
                 if fase == 4:
-                    with st.container(border=True):
-                        st.subheader("Il punto di partenza.")
+                    st.subheader("Il punto di partenza")
+                    with st.container(key="riepilogo"):
                         for etichetta, valore in (
                             ("Modello", file.name if file else "Nessun modello selezionato"),
                             ("Utilizzo", st.session_state["scopo"] or "Non specificato"),
@@ -667,21 +660,12 @@ with tab_analisi:
                             ("Priorità", priorita),
                             ("Ricerca", f"{st.session_state['budget_ricerca']} prove aggiuntive"),
                             ("Stampante", config.STAMPANTE["modello"]),
-                            ("Profilo", profilo_filamento if SLICER else "Slicer non disponibile"),
+                            ("Profilo filamento", profilo_filamento if SLICER else "Slicer non disponibile"),
                         ):
-                            a, b = st.columns([1, 3])
-                            a.caption(etichetta)
-                            b.write(valore)
-                        st.info("Geometria e slicer costruiscono il confronto. L’assistente AI aggiunge una spiegazione solo su richiesta.")
-    if 2 <= fase <= 4:
-        with st.container(key="azioni_percorso"):
-            indietro, alternativa, avanti = st.columns([1, 2, 1])
-            indietro.button("← Indietro", disabled=fase == 1, on_click=ui.vai_fase,
-                            args=(fase - 1,), key="percorso_indietro", width="stretch")
-            if fase < 4:
-                avanti.button("Continua →", type="primary", disabled=not file,
-                              on_click=ui.vai_fase, args=(fase + 1,),
-                              key="percorso_avanti", width="stretch")
+                            st.html(f'<div class="summary-row"><span>{escape(etichetta)}</span>'
+                                    f'<span>{escape(str(valore))}</span></div>')
+            with contesto:
+                ui.contesto_pezzo(file_contesto, config.STAMPANTE, st.session_state["filamenti"], fase=fase)
 
     analizza_ora = False
     if file and fase == 4:
@@ -713,24 +697,27 @@ with tab_analisi:
         originale.write_bytes(file.getvalue())
         salva_json(cartella / "ingresso.json", {"file": originale.name, "sha256": sha})
         salva_json(cartella / "richiesta.json", richiesta_corrente)
-        apri_lavoro(cartella)
+        apri_lavoro(cartella, conserva_modello=True)
         lavorazioni.avvia(cartella)
         st.rerun()
 
     if fase >= 5:
-        lavorazione_attiva = False
-        if "lavoro" in st.session_state:
-            stato_lavoro = lavorazioni.stato(Path(st.session_state["lavoro"]))
-            lavorazione_attiva = stato_lavoro.get("stato") == "in corso"
-            if lavorazione_attiva:
-                mostra_avanzamento(Path(st.session_state['lavoro']))
-                if st.button("Aggiorna avanzamento"):
-                    st.rerun()
-            elif stato_lavoro.get("stato") in ("errore", "interrotta"):
-                st.warning(stato_lavoro.get("errore", "Lavorazione interrotta"))
-                if st.button("Riprendi la lavorazione"):
-                    lavorazioni.avvia(Path(st.session_state["lavoro"]), stato_lavoro.get("modo", "completa"))
-                    st.rerun()
+        if lavorazione_attiva or stato_lavoro.get("stato") in ("errore", "interrotta"):
+            with st.container(key="wizard_layout"):
+                principale, contesto = st.columns([926, 450], gap="large")
+                with principale, st.container(key="wizard_main"):
+                    st.subheader("Analisi in corso" if lavorazione_attiva else "Lavorazione interrotta")
+                    if lavorazione_attiva:
+                        mostra_avanzamento(cartella_lavoro)
+                        if avanti.button("Aggiorna avanzamento"):
+                            st.rerun()
+                    else:
+                        st.warning(stato_lavoro.get("errore", "Lavorazione interrotta"))
+                        if avanti.button("Riprendi la lavorazione"):
+                            lavorazioni.avvia(cartella_lavoro, stato_lavoro.get("modo", "completa"))
+                            st.rerun()
+                with contesto:
+                    ui.contesto_pezzo(file_contesto, config.STAMPANTE, st.session_state["filamenti"], fase=5)
 
         if ("lavoro" in st.session_state and not lavorazione_attiva
                 and (Path(st.session_state["lavoro"]) / "analisi.json").exists()):
@@ -739,7 +726,7 @@ with tab_analisi:
             if dati.get("versione_geometria", 1) < config.VERSIONE_GEOMETRIA:
                 percorso_mesh = percorso_modello_lavoro(cartella, dati)
                 if percorso_mesh is not None:
-                    if st.button("Aggiorna la geometria salvata"):
+                    if alternativa.button("Aggiorna la geometria salvata"):
                         lavorazioni.avvia(cartella, "geometria")
                         st.rerun()
                     st.warning("Geometria salvata con una versione precedente: aggiornala prima del confronto.")
@@ -748,169 +735,48 @@ with tab_analisi:
                         "Non posso aggiornare la geometria perché il file del modello non è più disponibile."
                     )
             dati = classifica.applica(dati)
-            risultati.mostra(
-                cartella, dati, richiesta_corrente, SLICER,
-                percorso_modello_lavoro(cartella, dati),
-                download=lambda opt, scelta: mostra_download(cartella, dati, opt, scelta),
-                bobina=lambda scelta: mostra_bobina(dati, scelta),
-                controlli=lambda: mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione),
-                consiglio=lambda: mostra_consiglio(cartella, dati, richiesta_corrente),
-                ricalcola=lambda opt: ricalcola_varianti(cartella, opt),
-            )
+            with st.container(key="risultati"):
+                risultati.mostra(
+                    cartella, dati, richiesta_corrente, SLICER,
+                    percorso_modello_lavoro(cartella, dati),
+                    download=lambda opt, scelta: mostra_download(cartella, dati, opt, scelta),
+                    bobina=lambda scelta: mostra_bobina(dati, scelta),
+                    controlli=lambda: mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione),
+                    consiglio=lambda: mostra_consiglio(cartella, dati, richiesta_corrente),
+                    ricalcola=lambda opt: ricalcola_varianti(cartella, opt),
+                    header_avanti=avanti,
+                )
 
-    # ------------------------------------------------------------------ diario
-with tab_diario:
-    st.subheader("Annota una stampa")
-    lavori = sorted((p.name for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True)
-    with st.form("nuova_voce", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            pezzo = st.text_input("Pezzo")
-            lavoro = st.selectbox("Analisi collegata", ["nessuna", *lavori])
-            materiale = st.selectbox("Materiale", config.FILAMENTI)
-            esito = st.select_slider("Esito", diario.ESITI, value="buona")
-        with c2:
-            problemi = st.multiselect("Problemi", diario.PROBLEMI)
-            impostazioni = st.text_area("Impostazioni usate (quelle cambiate)", placeholder="es. strato 0,16; pareti 4; spaziatura interfaccia 0,2")
-            commento = st.text_area("Com'è andata")
-            foto = st.file_uploader("Foto (facoltative)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-        with st.expander("Parametri per la calibrazione personale"):
-            p1, p2, p3 = st.columns(3)
-            temperatura_ugello = p1.number_input("Temperatura ugello °C (0 = non annotata)", 0, 350, 0)
-            temperatura_piatto = p2.number_input("Temperatura piatto °C (0 = non annotata)", 0, 150, 0)
-            velocita_usata = p3.number_input("Velocità principale mm/s (0 = non annotata)", 0, 1000, 0)
-            p4, p5, p6 = st.columns(3)
-            flow_usato = p4.number_input("Flow % (0 = non annotato)", 0.0, 150.0, 0.0, step=0.5)
-            retrazione_usata = p5.number_input("Retrazione mm (0 = non annotata)", 0.0, 20.0, 0.0, step=0.1)
-            errore_dimensionale = p6.number_input(
-                "Errore dimensionale mm (+ grande, − piccolo)", -10.0, 10.0, value=None, step=0.05,
-            )
-            profilo_diario = st.text_input("Profilo filamento usato", value=config.PROFILO_FILAMENTO)
-        if st.form_submit_button("Salva nel diario", type="primary"):
-            percorsi = []
-            for f in foto or []:
-                p = config.FOTO / f"{datetime.now():%Y%m%d-%H%M%S}_{f.name}"
-                p.write_bytes(f.getvalue())
-                percorsi.append(str(p))
-            diario.aggiungi({"pezzo": pezzo, "analisi": None if lavoro == "nessuna" else lavoro, "materiale": materiale,
-                             "esito": esito, "problemi": problemi, "impostazioni": impostazioni,
-                             "commento": commento, "foto": percorsi,
-                             "temperatura_ugello_c": temperatura_ugello,
-                             "temperatura_piatto_c": temperatura_piatto,
-                             "velocita_mm_s": velocita_usata, "flow_pct": flow_usato,
-                             "retrazione_mm": retrazione_usata,
-                             "profilo_filamento": profilo_diario,
-                             "errore_dimensionale_mm": errore_dimensionale})
-            st.success("Salvato.")
 
-    st.subheader("Stampe annotate")
-    voci = diario.tutte()
-    if not voci:
-        st.caption("Ancora nessuna stampa nel diario.")
-    else:
-        st.markdown("**Tendenze registrate**")
-        filtro_materiale = st.selectbox("Materiale per le tendenze", config.FILAMENTI, key="materiale_tendenze")
-        profili_tendenze = sorted({v.get("profilo_filamento") or "__non_annotato__" for v in voci
-                                  if v.get("materiale") == filtro_materiale}) or ["__non_annotato__"]
-        filtro_profilo = st.selectbox("Profilo per le tendenze", profili_tendenze,
-                                      format_func=lambda x: "Profilo non annotato" if x == "__non_annotato__" else x)
-        riepilogo_diario = calibrazione.analizza(voci, filtro_materiale, profilo=filtro_profilo)
-        if riepilogo_diario["problemi_ricorrenti"]:
-            st.dataframe(pd.DataFrame(riepilogo_diario["problemi_ricorrenti"]), width="stretch", hide_index=True)
-        else:
-            st.caption("Nessun problema compare ancora almeno due volte.")
-    for i in reversed(range(len(voci))):
-        v = voci[i]
-        with st.expander(f"{v['data']} — {v.get('pezzo') or 'senza nome'} — {v['esito']}"):
-            st.write({k: v[k] for k in ("materiale", "problemi", "impostazioni", "commento") if v.get(k)})
-            for p in v.get("foto", []):
-                st.image(p, width=320)
-            if v.get("diagnosi"):
-                st.markdown(v["diagnosi"])
-                st.caption(f"Diagnosi di {v.get('diagnosi_provider', 'Claude')}")
-            elif st.button(f"Chiedi a {provider} cosa migliorare", key=f"diag{i}"):
-                with st.spinner(f"{provider} sta guardando la stampa..."):
-                    testo, _, errore = chiedi(prompt_diagnosi(v, v.get("foto", [])), config.CARTELLA, modello,
-                                             provider=provider, immagini=v.get("foto", []))
-                if errore or not testo:
-                    st.error(f"Qualcosa è andato storto: {errore or 'risposta vuota'}")
-                else:
-                    diario.aggiorna(i, {"diagnosi": testo, "diagnosi_provider": provider,
-                                       "diagnosi_modello": modello or "predefinito"})
-                    st.rerun()
+def mostra_diario():
+    diario_ui.mostra(provider, modello)
 
-# ------------------------------------------------------------------ bobine
-with tab_bobine:
-    st.subheader("Inventario bobine")
-    inventario = bobine.tutte()
-    if inventario:
-        st.dataframe(pd.DataFrame([{
-            "nome": b["nome"], "materiale": b["materiale"], "marca": b.get("marca"),
-            "colore": b.get("colore"), "residuo g": b["residuo_g"],
-            "tara g": b.get("tara_g"), "costo €": b.get("costo_eur"), "stato": b.get("stato"),
-        } for b in inventario]), width="stretch", hide_index=True)
-    else:
-        st.caption("Nessuna bobina registrata.")
 
-    with st.form("aggiungi_bobina", clear_on_submit=True):
-        st.markdown("**Aggiungi una bobina**")
-        b1, b2, b3 = st.columns(3)
-        nome_bobina = b1.text_input("Nome bobina", placeholder="es. PETG nero Elegoo")
-        materiale_bobina = b2.selectbox("Materiale", config.FILAMENTI, key="materiale_bobina")
-        marca_bobina = b3.text_input("Marca")
-        b4, b5, b6 = st.columns(3)
-        colore_bobina = b4.text_input("Colore")
-        peso_bobina = b5.number_input("Peso netto iniziale g", 1.0, 10000.0, 1000.0)
-        residuo_bobina = b6.number_input("Residuo stimato g", 0.0, 10000.0, 1000.0)
-        b7, b8, b9 = st.columns(3)
-        tara_bobina = b7.number_input("Tara bobina vuota g", 0.0, 2000.0, 0.0)
-        costo_bobina = b8.number_input("Costo bobina €", 0.0, 1000.0, 0.0, step=0.5)
-        stato_bobina = b9.selectbox("Stato", ["pronta", "da essiccare", "esaurita"])
-        if st.form_submit_button("Aggiungi bobina", type="primary"):
-            bobine.aggiungi({
-                "nome": nome_bobina, "materiale": materiale_bobina, "marca": marca_bobina,
-                "colore": colore_bobina, "peso_netto_g": peso_bobina, "residuo_g": residuo_bobina,
-                "tara_g": tara_bobina, "costo_eur": costo_bobina, "stato": stato_bobina,
-            })
-            st.rerun()
+def apri_da_storico(cartella):
+    apri_lavoro(cartella)
+    st.switch_page(pagina_analisi, query_params={"lavoro": cartella.name})
 
-    if inventario:
-        etichette_bobine = {f"{b['nome']} — {b['residuo_g']:g} g [{b['id']}]": b["id"] for b in inventario}
-        c_consumo, c_pesata = st.columns(2)
-        with c_consumo.form("consumo_bobina"):
-            st.markdown("**Registra una stampa**")
-            scelta_consumo = st.selectbox("Bobina", list(etichette_bobine), key="bobina_consumo")
-            grammi_consumati = st.number_input("Grammi consumati", 0.0, 10000.0, 0.0, step=1.0)
-            if st.form_submit_button("Sottrai dal residuo"):
-                bobine.consuma(etichette_bobine[scelta_consumo], grammi_consumati)
-                st.rerun()
-        with c_pesata.form("pesata_bobina"):
-            st.markdown("**Aggiorna con una pesata**")
-            scelta_pesata = st.selectbox("Bobina", list(etichette_bobine), key="bobina_pesata")
-            peso_lordo = st.number_input("Peso lordo bobina + filamento g", 0.0, 12000.0, 0.0, step=1.0)
-            if st.form_submit_button("Calcola il residuo dalla tara"):
-                bobine.aggiorna_da_pesata(etichette_bobine[scelta_pesata], peso_lordo)
-                st.rerun()
 
-# ------------------------------------------------------------------ storico
-with tab_storico:
-    st.caption("Ogni analisi è salvata con immagini, sezionamenti e consiglio AI: riaprirla non ricalcola niente.")
-    salvati = {l["cartella"].name: l["dati"] for l in lavori_salvati()}
-    for nome in sorted((p.name for p in config.LAVORI.iterdir() if p.is_dir()), reverse=True):
-        cartella = config.LAVORI / nome
-        if nome not in salvati:
-            if (cartella / "ingresso.json").exists():
-                if st.button(f"Apri lavorazione {nome}", key=f"riprendi{nome}"):
-                    apri_lavoro(cartella)
-                    st.rerun()
-            else:
-                st.caption(f"{nome}: analisi precedente interrotta prima del salvataggio.")
-            continue
-        with st.expander(f"{nome[16:] or nome} — {descrivi_lavoro(cartella, salvati[nome])}"):
-            if st.button("Riapri nella scheda Analizza", key=f"apri{nome}", type="primary"):
-                apri_lavoro(cartella)
-                st.rerun()
-            if (cartella / "orientamenti.png").exists():
-                st.image(str(cartella / "orientamenti.png"))
-            if (cartella / "consiglio.md").exists():
-                st.markdown((cartella / "consiglio.md").read_text(encoding="utf-8"))
+def nuovo_da_storico():
+    risultati.nuovo_pezzo()
+    st.switch_page(pagina_analisi)
+
+
+def mostra_storico():
+    storico_ui.mostra(lavori_salvati, descrivi_lavoro, apri_da_storico, nuovo_da_storico)
+
+
+pagina_analisi = st.Page(mostra_analisi, title="Analisi", default=True)
+pagine = [pagina_analisi,
+          st.Page(mostra_diario, title="Diario", url_path="diario"),
+          st.Page(bobine_ui.mostra, title="Bobine", url_path="bobine"),
+          st.Page(mostra_storico, title="Storico", url_path="storico"),
+          st.Page(impostazioni_ui.mostra, title="Impostazioni", url_path="impostazioni")]
+pagina = st.navigation(pagine, position="hidden")
+with st.container(key="navigazione", horizontal=True):
+    for voce in pagine:
+        parametri = ({"lavoro": Path(st.session_state["lavoro"]).name}
+                     if voce is pagina_analisi and "lavoro" in st.session_state else None)
+        with st.container(key="nav_attiva" if voce is pagina else f"nav_{voce.title.lower()}"):
+            st.page_link(voce, label=voce.title, width="stretch", query_params=parametri)
+pagina.run()

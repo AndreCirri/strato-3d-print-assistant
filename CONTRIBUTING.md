@@ -64,6 +64,14 @@ This test generates a model in a temporary directory, invokes the real slicer, c
 results and a mechanical 3MF export. It skips explicitly when the slicer is unavailable.
 For UI changes, also check the app in a browser at desktop and smaller sizes.
 
+The optional Playwright suite covers desktop, tablet and mobile, uploads, form
+submissions and a real geometry job. Install `requirements-browser.txt` and run
+`python -m playwright install chromium`. Start `tests/browser_app.py` with Streamlit
+on port 8511, setting `STRATO_BROWSER_DATA` to a fresh temporary directory, then
+run `python tests/browser_suite.py` in another terminal. Screenshots go to
+`/tmp/strato-browser-results` by default; `STRATO_BROWSER_OUTPUT` changes this path.
+`STRATO_BROWSER_URL` selects a different local server. AI calls are never triggered.
+
 Do not commit models, journals, inventories, credentials or generated analysis directories.
 Report vulnerabilities according to [SECURITY.md](SECURITY.md).
 Contributions are distributed under the repository's [AGPL-3.0 license](LICENSE).

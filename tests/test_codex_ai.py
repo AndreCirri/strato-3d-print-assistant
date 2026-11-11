@@ -1,5 +1,6 @@
 """Contratto del processo Codex: allegati, errori e instradamento senza chiamate online."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +11,53 @@ import consiglio
 
 
 class CodexTest(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "Il collegamento simbolico richiede privilegi su Windows")
+    def test_cli_locale_con_collegamento_interrotto(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            collegamento = home / ".local/bin/codex"
+            collegamento.parent.mkdir(parents=True)
+            collegamento.symlink_to(home / ".codex/packages/standalone/current/bin/codex")
+            cli = home / ".codex/packages/app-server-daemon/current/bin/codex"
+            cli.parent.mkdir(parents=True)
+            cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            cli.chmod(0o755)
+            with patch.dict(os.environ, {}, clear=True), \
+                 patch("codex_ai.Path.home", return_value=home), \
+                 patch("codex_ai.shutil.which", return_value=None):
+                self.assertEqual(codex_ai.eseguibile(), str(cli))
+
+    def test_percorsi_cli_e_codex_home(self):
+        nome = "codex.exe" if os.name == "nt" else "codex"
+        for percorso in (f".local/bin/{nome}",
+                         f".codex/packages/standalone/current/bin/{nome}",
+                         f".codex/packages/app-server-daemon/current/bin/{nome}",
+                         f"profilo/packages/app-server-daemon/current/bin/{nome}"):
+            with self.subTest(percorso=percorso), tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp)
+                cli = home / percorso
+                cli.parent.mkdir(parents=True)
+                cli.write_bytes(b"cli")
+                cli.chmod(0o755)
+                ambiente = {"CODEX_HOME": str(home / "profilo")} if percorso.startswith("profilo/") else {}
+                with patch.dict(os.environ, ambiente, clear=True), \
+                     patch("codex_ai.Path.home", return_value=home), \
+                     patch("codex_ai.shutil.which", return_value=None):
+                    self.assertEqual(codex_ai.eseguibile(), str(cli))
+
+    def test_priorita_override_e_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cli = Path(tmp) / "codex"
+            cli.write_bytes(b"cli")
+            with patch.dict(os.environ, {"STRATO_CODEX_EXE": str(cli)}), \
+                 patch("codex_ai.shutil.which") as which:
+                self.assertEqual(codex_ai.eseguibile(), str(cli))
+                which.assert_not_called()
+            with patch.dict(os.environ, {}, clear=True), \
+                 patch("codex_ai.shutil.which", return_value=str(cli)):
+                self.assertEqual(codex_ai.eseguibile(), str(cli))
+
+
     def test_risposta_immagini_e_permessi(self):
         with tempfile.TemporaryDirectory() as tmp:
             foto = Path(tmp) / "pezzo con spazi.png"

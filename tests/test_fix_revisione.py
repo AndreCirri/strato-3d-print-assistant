@@ -137,7 +137,10 @@ class DatiTest(unittest.TestCase):
                                 DIARIO=diario, BOBINE=root / 'bobine.json'):
                 app = AppTest.from_file(str(config.CARTELLA / 'app.py'), default_timeout=30).run()
                 self.assertFalse(app.exception)
+                from tests.test_ui import vai_pagina
+                vai_pagina(app, 'Bobine')
                 self.assertEqual(len(app.selectbox(key='bobina_consumo').options), 2)
+                vai_pagina(app, 'Diario')
                 campo = next(n for n in app.number_input if n.label.startswith('Errore dimensionale'))
                 self.assertIsNone(campo.value)
                 self.assertEqual(app.selectbox(key='materiale_tendenze').value, 'PLA')

@@ -62,7 +62,7 @@ def delta(valore, riferimento):
 
 
 def badge(misurato=True, fonte=''):
-    st.html(f'<span class="r-badge {"misurato" if misurato else "euristico"}">{"✓ Misurato" if misurato else "◇ Euristico"}</span><span class="r-fonte">{escape(fonte)}</span>')
+    st.html(f'<span class="r-badge {"misurato" if misurato else "euristico"}">{"Misurato" if misurato else "Euristico"}</span><span class="r-fonte">{escape(fonte)}</span>')
 
 
 def scheda(chiave, nome):
@@ -189,23 +189,24 @@ def grafico(righe, scelta, chiave, widget, cartella, oid):
         'data': {'values': dati_grafico}, 'height': 420,
         'layer': [
             {'transform': [{'filter': 'datum.frontiera'}],
-             'mark': {'type': 'line', 'strokeDash': [5, 5], 'color': '#e8772b'},
+             'mark': {'type': 'line', 'strokeDash': [5, 5], 'color': '#FF6827'},
              'encoding': {'x': x, 'y': y, 'order': {'field': 'totale'}}},
             {'params': [{'name': 'profilo', 'select': {'type': 'point', 'fields': ['variante_id'],
                                                      'toggle': False, 'nearest': True, 'clear': False}}],
              'mark': {'type': 'point', 'filled': True, 'size': 145, 'strokeWidth': 2, 'cursor': 'pointer', 'opacity': 1},
              'encoding': {'x': x, 'y': y,
-                          'fill': {'condition': {'test': 'datum.selezionata', 'value': '#e8772b'}, 'value': '#f7f7f4'},
-                          'stroke': {'condition': {'test': 'datum.selezionata', 'value': '#e8772b'}, 'value': '#191b1b'},
+                          'fill': {'condition': {'test': 'datum.selezionata', 'value': '#FF6827'}, 'value': '#FFFFFF'},
+                          'stroke': {'condition': {'test': 'datum.selezionata', 'value': '#FF6827'}, 'value': '#191C1D'},
                           'tooltip': [{'field': 'nome', 'title': 'Variante'}, {'field': 'minuti', 'title': 'Minuti', 'format': '.1f'},
                                       {'field': 'totale', 'title': 'Totale g', 'format': '.1f'}]}},
             {'transform': [{'filter': "datum.label !== ''"}],
-             'mark': {'type': 'text', 'align': 'left', 'fontSize': 12, 'color': '#191b1b'},
+             'mark': {'type': 'text', 'align': 'left', 'font': 'Plus Jakarta Sans', 'fontSize': 12, 'color': '#191C1D'},
              'encoding': {'x': {**x, 'field': 'label_x'},
                           'y': {**y, 'field': 'label_y'},
                           'text': {'field': 'label'}}}],
-        'config': {'background': '#f7f7f4', 'view': {'stroke': None},
-                   'axis': {'labelColor': '#686d6a', 'titleColor': '#686d6a', 'gridColor': '#d4d6d0',
+        'config': {'background': '#FFFFFF', 'font': 'Plus Jakarta Sans', 'view': {'stroke': None},
+                   'axis': {'labelColor': '#64748B', 'titleColor': '#64748B', 'gridColor': '#E2E8F0',
+                            'labelFont': 'Plus Jakarta Sans', 'titleFont': 'Plus Jakarta Sans',
                             'domain': False, 'ticks': False, 'labelFontSize': 12, 'titleFontWeight': 'normal',
                             'titlePadding': 22, 'labelPadding': 12}},
     }
@@ -217,7 +218,8 @@ def grafico(righe, scelta, chiave, widget, cartella, oid):
     st.caption('Seleziona un punto o usa la tabella. Qualità e resistenza restano indicatori separati.')
 
 
-def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, controlli, consiglio, ricalcola):
+def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, controlli, consiglio, ricalcola,
+           header_avanti=None):
     meccanica = confronto.meccanica(dati, richiesta)
     opt = ottimizzazione.aggiorna_priorita(dati.get('ottimizzazione_processo', {}),
                                          richiesta.get('priorita'), meccanica)
@@ -241,13 +243,13 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
     valutazione = stampabilita.valuta({**dati, 'orientamenti': [orientamento]}, config.VOLUME_STAMPA, config.UGELLO_MM)
     problemi = valutazione['controlli']
 
-    with st.container(key='risultati_testata'):
-        titolo, stato, azioni = st.columns([5, 1.4, 1])
-        with titolo:
-            st.html(f'<div class="strato-eyebrow">PROGETTO / {escape(cartella.name.split("_")[0])}</div><h1 class="r-titolo">{escape(Path(dati.get("file", cartella.name)).name)} <span>/ {escape(materiale)}</span></h1>')
-        with azioni:
-            st.button('＋ Nuovo pezzo', on_click=nuovo_pezzo, width='stretch')
-        stato.caption(f"{len(dati['orientamenti'])} orientamenti analizzati")
+    if header_avanti is not None:
+        header_avanti.button('Nuovo pezzo', on_click=nuovo_pezzo, width='stretch')
+    else:
+        with st.container(key='risultati_testata'):
+            stato, azioni = st.columns([4, 1])
+            stato.caption(f"{Path(dati.get('file', cartella.name)).name} · {len(dati['orientamenti'])} orientamenti analizzati")
+            azioni.button('Nuovo pezzo', on_click=nuovo_pezzo, width='stretch')
 
     with st.container(key='risultati_pagine'):
         principale, orientamenti, varianti, verifiche, apprendimento = st.tabs(
@@ -256,29 +258,30 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
 
         with principale:
             with st.container(key='risultato_schermata'):
-                with st.container(key='risultato_hero', border=True):
-                    scena, verdetto = st.columns([1.12, 1], gap=None)
+                with st.container(key='risultato_hero'):
+                    scena, verdetto = st.columns([926, 450], gap='large')
                     with scena:
-                        with st.container(key='risultato_stage'):
-                            st.html(f'<div class="strato-eyebrow">ORIENTAMENTO {oid:02}</div><span class="r-numero">{oid:02}</span>')
+                        with st.container(key='risultato_stage', border=True):
+                            st.subheader(f'Orientamento {oid:02}')
                             modello(percorso, orientamento, interattivo=True)
-                            st.html(f'<div class="strato-eyebrow">{escape(nome_orientamento(orientamento))}</div>')
+                            st.caption(f"{Path(dati.get('file', cartella.name)).name} · {nome_orientamento(orientamento)}")
                             st.caption('Supporti geometrici: rosso piatto · arancio pezzo · viola cavità')
                             st.button(f"Confronta i {len(dati['orientamenti'])} orientamenti ↗",
                                       key='apri_orientamenti', on_click=scheda, args=(navigazione, 'Orientamenti'))
                     with verdetto:
-                        with st.container(key='risultato_verdetto'):
-                            badge(bool(riga and attuale), 'ELEGOOSLICER · LOCALE' if attuale else 'CONFRONTO DA VERIFICARE')
-                            titolo = ('Prima risolvi<br>i controlli.' if any(p['gravita'] == 'errore' for p in problemi)
-                                      else 'Un buon punto<br>di partenza.' if rac and selezionata == rac_chiave
-                                      else 'La tua<br>configurazione.' if rac else 'Una scelta<br>da verificare.')
-                            st.html(f'<h2 class="r-verdetto">{titolo.replace("<br>", "<br> ")}</h2>')
-                            st.caption((rac['motivo'].capitalize() + '.') if rac and selezionata == rac_chiave else
-                                       'Confronta questa configurazione con il consiglio iniziale prima della stampa.')
-                            st.divider()
+                        with st.container(key='risultato_verdetto', border=True):
+                            consigliata = bool(rac and selezionata == rac_chiave)
+                            st.subheader('Configurazione consigliata' if consigliata else 'Configurazione selezionata')
+                            misurata = bool(attuale and riga and riga_valida(riga))
+                            badge(misurata, 'ELEGOOSLICER · LOCALE' if misurata else 'CONFRONTO DA VERIFICARE')
                             selezione, cambia = st.columns([3, 1])
-                            selezione.html(f'<div class="strato-eyebrow">CONFIGURAZIONE {"CONSIGLIATA" if selezionata == rac_chiave else "SELEZIONATA"}</div><strong>{escape(nome_orientamento(orientamento))} · {escape(testo_profilo(riga["variante"]) if riga else "Geometria")}</strong>')
+                            selezione.subheader(nome_orientamento(orientamento))
                             cambia.button('Cambia ↗', on_click=scheda, args=(navigazione, 'Varianti'))
+                            st.caption(f'{testo_profilo(riga["variante"]) if riga else "Geometria"} · {materiale}')
+                            if consigliata:
+                                st.caption(rac['motivo'].capitalize() + '.')
+                            if any(p['gravita'] == 'errore' for p in problemi):
+                                st.warning('Risolvi i controlli prima di stampare.')
                             metriche(riga or orientamento.get('slicer') or {})
                             if esportabile and riga:
                                 if meccanica and richiesta.get('priorita') == 'robustezza e rigidità' and (
@@ -293,25 +296,25 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
                                     st.button('Calcola e verifica i processi', key='verifica_hero',
                                               on_click=lavorazioni.avvia, args=(cartella, 'varianti'))
 
-                sinistra, destra = st.columns([1.12, 1], gap='medium')
-                with sinistra:
-                    with st.container(key='prima_stampa', border=True):
-                        nome, link = st.columns([3, 1])
-                        nome.markdown('**Prima di stampare**')
-                        link.button('Tutti i controlli ↗', on_click=scheda, args=(navigazione, 'Controlli'))
-                        for problema in problemi[:2]:
-                            st.html(f'<div class="r-avviso"><strong>{escape(problema["controllo"])}</strong><p>{escape(problema["messaggio"])}</p><small>{escape(problema["azione"])}</small></div>')
-                        if not problemi:
-                            st.caption('Nessun problema rilevato dai controlli disponibili.')
-                        if riga and esportabile:
-                            bobina(riga)
-                with destra:
-                    with st.container(key='secondo_parere', border=True):
-                        st.html('<div class="r-ai-copy"><h3>Un secondo parere, con il perché.</h3>'
-                                '<p>La geometria dà i numeri. L’assistente AI scelto nelle Impostazioni può aiutarti a interpretarli, valutare i rischi e scegliere una prova utile.</p>'
-                                '<small>Nessun invio automatico. La stampa non dipende dall’AI.</small></div>')
-                        st.button('Chiedi un consiglio ↗', type='primary', on_click=chiedi_consiglio,
-                                  args=(navigazione,))
+                with st.container(key='risultato_layout'):
+                    sinistra, destra = st.columns([926, 450], gap='large')
+                    with sinistra:
+                        with st.container(key='prima_stampa', border=True):
+                            nome, link = st.columns([3, 1])
+                            nome.subheader('Prima di stampare')
+                            link.button('Tutti i controlli ↗', on_click=scheda, args=(navigazione, 'Controlli'))
+                            for problema in problemi[:2]:
+                                st.html(f'<div class="r-avviso"><strong>{escape(problema["controllo"])}</strong><p>{escape(problema["messaggio"])}</p><small>{escape(problema["azione"])}</small></div>')
+                            if not problemi:
+                                st.caption('Nessun problema rilevato dai controlli disponibili.')
+                            if riga and esportabile:
+                                bobina(riga)
+                    with destra:
+                        with st.container(key='secondo_parere', border=True):
+                            st.subheader('Un secondo parere')
+                            st.caption('L’assistente AI scelto nelle Impostazioni può aiutarti a interpretare i dati e valutare una prova utile, solo su richiesta.')
+                            st.button('Chiedi un consiglio ↗', type='primary', on_click=chiedi_consiglio,
+                                      args=(navigazione,))
 
         with orientamenti:
             st.subheader(f"Stesso pezzo. {len(dati['orientamenti'])} modi di appoggiarlo.")
@@ -331,11 +334,11 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
                                 badge(risultato_valido(s))
                             st.html(f'<p class="r-card-desc">{escape(descrizione_orientamento(o))}</p>')
                             metriche(s, mini=True)
-                            st.caption(f"Ribaltamento: {'Alto' if o.get('si_ribalta') else 'Basso'} · ◇ Euristico")
+                            st.caption(f"Ribaltamento: {'Alto' if o.get('si_ribalta') else 'Basso'} · Euristico")
                             possibili = [k for k in configurazioni if k[0] == o['id']]
                             preferita = next((k for k in possibili if riga and k[1] == riga['variante_id']),
                                              possibili[0] if possibili else None)
-                            st.button('✓ Selezionato' if o['id'] == oid else 'Scegli questo orientamento',
+                            st.button('Selezionato' if o['id'] == oid else 'Scegli questo orientamento',
                                       key=f"scegli_orientamento_{o['id']}", width='stretch',
                                       type='primary' if o['id'] == oid else 'secondary', disabled=preferita is None,
                                       on_click=scegli, args=(chiave, widget, preferita, navigazione))

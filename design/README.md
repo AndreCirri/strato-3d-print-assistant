@@ -43,9 +43,12 @@ nella finestra FigCraft; `mcp` senza `--attach` apre una sessione separata.
 
 ## Stato del lavoro
 
-- La schermata di caricamento è implementata nell'app, con Plus Jakarta Sans locale.
+- Le schermate di caricamento, utilizzo, priorità, riepilogo, analisi, risultato,
+  diario, bobine, storico e impostazioni sono implementate nell'app, con Plus
+  Jakarta Sans locale anche nei grafici e nelle tabelle.
 - Sono stati rimossi dall'app il pannello «Parametri di importazione» e il badge «Attivo».
-- Gli altri nove passaggi/sezioni sono mockup modificabili, non ancora tutti implementati.
+- Le azioni del percorso e i pulsanti di salvataggio sono nell'intestazione;
+  il menu Analisi, Diario, Bobine, Storico e Impostazioni resta in basso.
 - I mockup usano 108 istanze nei 11 frame, più le istanze dimostrative nella pagina Componenti.
 - Intestazioni, navigazione, fasi, pulsanti e campi sono collegati a master condivisi;
   modelli e contenuti specifici restano livelli nativi.
@@ -53,7 +56,7 @@ nella finestra FigCraft; `mcp` senza `--attach` apre una sessione separata.
 - Per tutte le nuove icone UI, scegliere esclusivamente set di Icons8; il set finale
   non è ancora stato scelto. Logo e illustrazioni geometriche sono elementi del design.
 
-Il font dell'interfaccia è **Plus Jakarta Sans ovunque**. Le indicazioni Geist,
+Il font dell'interfaccia è **Plus Jakarta Sans**. Le indicazioni Geist,
 Inter e JetBrains Mono del documento Stitch originale sono superate.
 
 Le anteprime in `design/previews/` servono a consultare rapidamente il lavoro;
@@ -67,3 +70,17 @@ quindi perfettamente omogeneo.
 `design/reference/stitch/` contiene HTML e immagine forniti nello ZIP iniziale.
 È materiale di riferimento storico; per layout, copy e componenti aggiornati usare
 il documento FigCraft. L'HTML originale può richiedere risorse esterne.
+
+## Gerarchia tipografica dell'app
+
+- Titoli pagina: 28 px, peso 700.
+- Titoli sezione e schede: 18 px, peso 600; sottotitoli interni: 16 px, peso 600.
+- Testi e valori dei campi: 14 px, peso 400.
+- Azioni: 14 px, peso 600; navigazione e accordion: peso 500.
+- Etichette e note: 12 px, peso 500 e 400 rispettivamente, anche su mobile.
+- Metriche principali: 24 px, peso 700; metriche compatte: 17–20 px.
+- Percorsi e codice: monospace di sistema, 12 px, peso 400, con ritorno a capo nei percorsi.
+
+Il font locale variabile copre i pesi 200–800. Grafici e anteprime mantengono
+Plus Jakarta Sans; il monospace è riservato ai dati tecnici. Le regole comuni
+sono in `ui.css`, quelle della schermata di caricamento in `caricamento.css`.

@@ -94,9 +94,12 @@ precedenti restano leggibili e indicano l'assistente che li ha generati; una nuo
 sostituisce il consiglio del lavoro corrente.
 
 Codex richiede **Codex CLI** installato e autenticato (`codex login`). STRATO cerca `codex`
-nel PATH e, su Windows, anche nel percorso locale dell'app Codex. In alternativa imposta
-`STRATO_CODEX_EXE` al percorso completo dell'eseguibile. Il campo **Modello Codex** è
-facoltativo: vuoto usa il modello predefinito della CLI, senza caricare il config personale.
+nel PATH, in `~/.local/bin` e nei pacchetti `standalone` e `app-server-daemon` di
+`CODEX_HOME` (predefinito `~/.codex`). Su Windows cerca anche nel percorso locale dell'app Codex.
+In alternativa imposta
+`STRATO_CODEX_EXE` al percorso completo dell'eseguibile. La select **Modello Codex** offre
+Sol 6.1, Terra 6.1, Luna, Astra e Sol 6; **Predefinito della CLI** non specifica un modello,
+senza caricare il config personale. La disponibilità dei modelli dipende dall'account Codex.
 
 La richiesta usa `codex exec` con sandbox **read-only**, sessione effimera e configurazione
 utente disattivata. Numeri, contesto stampante, richiesta e diario recente vengono inviati

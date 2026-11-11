@@ -14,6 +14,16 @@ def eseguibile():
     trovato = shutil.which("codex.exe") or shutil.which("codex")
     if trovato:
         return trovato
+    home = Path.home()
+    codex_home = Path(os.environ.get("CODEX_HOME") or home / ".codex").expanduser()
+    nome = "codex.exe" if os.name == "nt" else "codex"
+    # Gli aggiornamenti possono lasciare il comando nel PATH come symlink interrotto.
+    percorsi = [home / ".local/bin" / nome]
+    percorsi += [codex_home / "packages" / pacchetto / "current/bin" / nome
+                 for pacchetto in ("standalone", "app-server-daemon")]
+    for percorso in percorsi:
+        if percorso.is_file() and os.access(percorso, os.X_OK):
+            return str(percorso)
     locale = os.environ.get("LOCALAPPDATA")
     if locale:
         percorso = Path(locale) / "Programs/OpenAI/Codex/bin/codex.exe"
