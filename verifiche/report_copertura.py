@@ -37,7 +37,8 @@ def riepilogo(dati):
         '', 'Il 50% serve solo a evidenziare le aree meno coperte: non blocca la CI. '
         'Il report HTML indica tutte le righe e i rami mancanti.', '',
         '## Verifiche fuori da questa misura', '',
-        '- Layout, responsive, upload dal browser e rendering WebGL: manca una suite browser in CI.',
+        '- Il job browser separato verifica upload, navigazione, pulsanti responsive e rendering/orbita WebGL. '
+        'Non contribuisce a questa percentuale e non copre tutte le schermate risultato o confronti pixel.',
         '- ElegooSlicer e progetto 3MF reali: la suite usa fixture; '
         '`tests/integrazione_worker.py` resta una verifica opzionale separata.',
         '- Claude e conversione STEP con augura reali: non vengono invocati dalla CI.',

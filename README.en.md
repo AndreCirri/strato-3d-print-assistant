@@ -97,6 +97,8 @@ From the project directory:
 ```
 
 The suite covers geometry, persistence, the guided workflow, the 3D viewer and exports.
+A separate browser job checks uploads, navigation, responsive action buttons and 3D rendering in Chromium.
+Commands and scope: [CONTRIBUTING.md](CONTRIBUTING.md#browser-tests).
 Unit tests use synthetic slicer profiles and need no ElegooSlicer installation. Printability checks are sampled or heuristic:
 they do not replace G-code inspection or certify the part's strength.
 

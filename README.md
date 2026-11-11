@@ -95,6 +95,8 @@ Dalla cartella del progetto:
 ```
 
 La suite copre geometria, persistenza, percorso guidato, viewer 3D ed esportazioni.
+Un job browser separato verifica upload, navigazione, pulsanti responsive e rendering 3D in Chromium.
+Comandi e limiti della suite browser: [CONTRIBUTING.md](CONTRIBUTING.md#browser-tests).
 Usa profili sintetici e non richiede ElegooSlicer. I controlli di stampabilità sono
 campionati o euristici: non certificano la resistenza del pezzo.
 

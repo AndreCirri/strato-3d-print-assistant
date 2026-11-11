@@ -22,6 +22,7 @@ limitations. Add meaningful tests when changing analysis, persistence or export 
 All tests and synthetic fixtures live in `tests/`. Run commands from the repository root.
 The `test_*.py` modules form the automatic suite; `tests/integrazione_worker.py` is the
 optional real-slicer check and is not included in discovery.
+Browser tests in `tests/browser_suite.py` are also run separately.
 
 ```powershell
 .venv\Scripts\python.exe -m pip check
@@ -50,8 +51,29 @@ To reproduce locally:
 .venv\Scripts\python.exe verifiche/report_copertura.py
 ```
 
-Tests and verification utilities are excluded from application coverage. Browser rendering,
-real slicer execution and live Claude/augura integrations are not validated by this percentage.
+Tests and verification utilities are excluded from application coverage. The separate browser
+job is not included in this percentage, nor are real slicer and live Claude/augura integrations.
+
+### Browser tests
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements-browser.txt
+.venv\Scripts\python.exe -m playwright install chromium --only-shell
+.venv\Scripts\python.exe -m tests.browser_suite
+```
+
+The suite starts and stops an isolated Streamlit server with temporary data and disabled external
+integrations. It uses real file uploads and Chromium WebGL (software rendering in CI): STL/OBJ/3MF,
+removal and re-upload of the same model, replacement, invalid-model recovery, wizard navigation,
+context persistence, main tabs, action visibility at 1366×768, 1440×900 and 390×844, mesh rendering
+and camera orbit/zoom. It does not run slicing or Claude, check all result tabs, or compare pixel baselines.
+
+Screenshots, traces and server logs are saved to ignored `browser-results/`. CI uploads them as
+the `browser-results` artifact for 14 days. To inspect an interaction failure:
+
+```powershell
+.venv\Scripts\python.exe -m playwright show-trace browser-results/test_webgl_render_and_orbit-trace.zip
+```
 
 For the optional end-to-end worker test, install ElegooSlicer with the profiles in `config.py`,
 configure its paths as described in the README, then run:
