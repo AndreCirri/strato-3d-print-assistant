@@ -210,10 +210,9 @@ class BrowserTest(unittest.TestCase):
         self.button('percorso_indietro').click()
         expect(purpose).to_have_value('Staffa sintetica per test browser')
         for name in ('Diario', 'Bobine', 'Storico', 'Impostazioni', 'Analisi'):
-            tab = self.page.locator('.st-key-navigazione').get_by_role('tab').filter(has_text=name)
-            tab.click()
+            self.page.get_by_role('link', name=name, exact=True).click()
             self.ready()
-            expect(tab).to_have_attribute('aria-selected', 'true')
+            expect(self.page.locator('.st-key-nav_attiva').get_by_role('link', name=name, exact=True)).to_be_visible()
 
     def test_webgl_render_and_orbit(self):
         self.upload()

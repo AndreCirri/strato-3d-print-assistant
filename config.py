@@ -85,3 +85,11 @@ VOLUME_STAMPA = (256, 256, 256)      # mm, Centauri Carbon: usato dall'add-on au
 FILAMENTI =["PLA", "PETG", "PLA-CF", "ASA", "ABS", "TPU 95A"]
 
 MODELLI = {"Opus (più accurato)": "opus", "Sonnet (più rapido)": "sonnet"}
+MODELLI_CODEX = {
+    "": "Predefinito della CLI",
+    "gpt-6.1-sol": "GPT-6.1 Sol",
+    "gpt-6.1-terra": "GPT-6.1 Terra",
+    "gpt-6-luna": "GPT-6 Luna",
+    "gpt-6-astra": "GPT-6 Astra",
+    "gpt-6-sol": "GPT-6 Sol",
+}

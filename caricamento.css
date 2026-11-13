@@ -1,0 +1,84 @@
+/* Upload-specific presentation. Shared theme and navigation live in ui.css. */
+.upload-title { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin:20px 0 24px; }
+.upload-title h1 { margin:0; padding:0!important; }
+.upload-title p { margin:5px 0 0; color:var(--strato-muted); font-size:15px; }
+.upload-profile { flex:none; min-width:260px; padding:12px 20px; border-radius:10px; background:var(--strato-soft); }
+.upload-profile small,.upload-profile b { display:block; }
+.upload-profile small { color:var(--strato-muted); font-size:12px; font-weight:700; line-height:1.5; }
+.upload-profile b { margin-top:6px; font-size:14px; line-height:1.6; }
+.st-key-upload_layout [data-testid="stHorizontalBlock"] { gap:28px; }
+.st-key-modello_box { min-height:448px; padding:24px!important; border:1px solid var(--strato-line)!important; border-radius:12px; background:var(--strato-panel); }
+.st-key-modello_box [data-testid="stFileUploader"] { padding:0; border:0; }
+.st-key-modello_box [data-testid="stFileUploaderDropzone"] { min-height:220px; border:1px dashed var(--strato-muted); border-radius:8px; background:var(--strato-soft); }
+.st-key-modello_box [data-testid="stImage"] img { width:100%; height:330px; object-fit:contain; }
+.st-key-modello_intestazione [data-testid="stHorizontalBlock"] { flex-wrap:nowrap; align-items:center; gap:16px; }
+.st-key-modello_intestazione [data-testid="stColumn"]:first-child { min-width:0; flex:1; overflow-wrap:anywhere; }
+.st-key-modello_intestazione [data-testid="stColumn"]:last-child { min-width:125px; flex:0 0 auto; }
+.st-key-rimuovi_modello button { min-height:44px; width:auto; padding:8px 12px; }
+.st-key-modello_box:has(.upload-stage) { position:relative; display:block; padding:0!important; }
+.upload-stage { position:relative; min-height:446px; padding:78px 20px 52px; text-align:center; box-sizing:border-box; background:radial-gradient(circle,#D6DDE5 .65px,transparent .8px) 5px 5px / 16.5px 17px; border-radius:12px; }
+.upload-meta { position:absolute; top:17px; right:20px; left:20px; display:flex; justify-content:space-between; gap:14px; color:var(--strato-muted); font-size:12px; }
+.upload-cube { display:grid; place-items:center; width:90px; height:90px; margin:auto; border-radius:20px; background:var(--strato-soft); }
+.upload-cube::before { content:""; width:48px; height:56px; background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 56'%3E%3Cpath d='M2 14 24 2 46 14 46 42 24 54 2 42Z M2 14 24 27 46 14 M24 2V54' fill='none' stroke='%23565E74' stroke-width='1.8'/%3E%3Ccircle cx='24' cy='27' r='4' fill='%23FF6827'/%3E%3C/svg%3E"); }
+.upload-stage strong { display:block; margin-top:26px; color:var(--strato-ink); font-size:21px; line-height:1.5; }
+.upload-description { margin-top:8px; color:var(--strato-muted); font-size:14px; line-height:1.6; }
+.upload-cta { display:grid; place-items:center; width:min(290px,100%); min-height:44px; margin:24px auto 0; padding:8px 12px; border-radius:8px; background:var(--strato-primary); color:var(--strato-panel); font-size:14px; font-weight:700; box-sizing:border-box; }
+.upload-formats { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:9px; margin-top:24px; font-size:12px; }
+.upload-formats span { display:grid; place-items:center; min-width:49px; min-height:27px; padding:0 10px; border-radius:14px; background:var(--strato-soft); }
+.upload-formats small { margin-left:8px; color:var(--strato-muted); font-size:12px; }
+.upload-footnote { position:absolute; bottom:17px; left:20px; right:20px; color:var(--strato-muted); font-size:12px; text-align:left; }
+/* Keep the real file button over the visual drop target, including keyboard focus. */
+.st-key-modello_box:has(.upload-stage) [data-testid="stElementContainer"]:has([data-testid="stFileUploader"]) { position:absolute; inset:0; width:100%; height:100%; }
+.st-key-modello_box:has(.upload-stage) [data-testid="stFileUploader"] { position:static; }
+.st-key-modello_box:has(.upload-stage) [data-testid="stFileUploader"] > [data-testid="stWidgetLabel"] { display:none; }
+.st-key-modello_box:has(.upload-stage) [data-testid="stFileUploaderDropzone"] { position:absolute; inset:0; height:100%; min-height:0; padding:0; opacity:0; }
+.st-key-modello_box:has(.upload-stage) [data-testid="stFileUploaderDropzone"] button { position:absolute; inset:0; width:100%; height:100%; cursor:pointer; }
+.st-key-modello_box:has(.upload-stage):has(button:focus-visible) .upload-cta { outline:3px solid var(--strato-accent); outline-offset:3px; }
+.st-key-modello_box:has(.upload-stage):has(button:hover) .upload-cta { background:#243149; }
+.upload-local { display:flex; align-items:center; gap:12px; min-height:63px; margin-top:20px; padding:12px 20px; border:1px solid var(--strato-line); border-radius:10px; background:var(--strato-panel); color:var(--strato-muted); font-size:12px; box-sizing:border-box; }
+.upload-local::before { content:""; width:7px; height:7px; flex:none; border-radius:50%; background:#10B981; }
+.upload-panel { padding:24px 28px; border:1px solid var(--strato-line); border-radius:12px; background:var(--strato-panel); }
+.upload-panel h2 { margin:0; padding:0!important; }
+.upload-bed { min-height:343px; box-sizing:border-box; }
+.upload-volume { position:relative; display:grid; place-items:center; height:148px; margin-top:15px; border-radius:8px; background:var(--strato-bg); }
+.upload-volume::before { content:""; width:min(256px,77%); height:120px; background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 120'%3E%3Cpath d='M2 60 128 2 255 60 128 119Z' fill='%23EDEEEF' stroke='%23CBD5E1' stroke-width='1.5'/%3E%3Cpath d='M39 62 128 20 217 62 128 103Z' fill='%23FFDBCF' stroke='%23FF6827' stroke-width='1.5'/%3E%3Cpath d='M128 2V119 M2 60H255' fill='none' stroke='%23CBD5E1'/%3E%3Ccircle cx='128' cy='62' r='4' fill='%23FF6827'/%3E%3C/svg%3E"); }
+.upload-volume small,.upload-volume span { position:absolute; left:16px; }
+.upload-volume small { top:15px; color:var(--strato-muted); font-size:12px; }
+.upload-volume span { bottom:8px; font-size:12px; }
+.upload-bed dl { margin:12px 0 0; padding:0; font-size:12px; }
+.upload-bed dl div { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:39px; }
+.upload-bed dl div + div { border-top:1px solid var(--strato-line); }
+.upload-bed dt,.upload-bed dd { margin:0; font-weight:400; }
+.upload-bed dt { color:var(--strato-muted); }
+.upload-bed dd { text-align:right; }
+@media (min-width:901px) {
+ .st-key-upload_layout > [data-testid="stHorizontalBlock"], .st-key-upload_layout > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] { display:grid; grid-template-columns:minmax(0,926fr) minmax(0,450fr); gap:28px; }
+ .st-key-upload_layout > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"], .st-key-upload_layout > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { width:100%; min-width:0; }
+}
+@media (max-width:900px) {
+ .upload-title { flex-direction:column; gap:16px; }
+ .upload-profile { min-width:0; }
+ .st-key-upload_layout > [data-testid="stHorizontalBlock"], .st-key-upload_layout > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] { flex-direction:column; gap:20px; }
+ .st-key-upload_layout > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"], .st-key-upload_layout > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { width:100%; flex:1 1 auto; }
+}
+@media (max-width:600px) {
+ .upload-title { margin:18px 0 22px; }
+ .upload-title p { font-size:14px; }
+ .upload-profile { padding:10px 14px; }
+ .upload-profile b { margin-top:3px; }
+ .st-key-modello_box { min-height:390px; padding:20px!important; }
+ .st-key-modello_box [data-testid="stImage"] img { height:250px; }
+ .st-key-modello_intestazione [data-testid="stHorizontalBlock"] { flex-wrap:wrap; }
+ .st-key-modello_intestazione [data-testid="stColumn"]:last-child { min-width:0; }
+ .upload-stage { min-height:446px; padding:68px 16px 55px; }
+ .upload-meta { right:16px; left:16px; font-size:12px; }
+ .upload-stage strong { margin-top:22px; font-size:18px; }
+ .upload-description { font-size:12px; }
+ .upload-cube { width:76px; height:76px; }
+ .upload-formats { gap:5px; margin-top:18px; }
+ .upload-formats span { min-width:32px; padding:0 8px; }
+ .upload-formats small { margin-left:2px; }
+ .upload-footnote { left:16px; right:16px; }
+ .upload-local { padding:12px 16px; font-size:12px; }
+ .upload-panel { padding:20px; }
+}

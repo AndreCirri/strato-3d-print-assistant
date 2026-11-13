@@ -1,0 +1,15 @@
+Independent FigCraft component migration QA
+
+Read-only native MCP inspection and raster capture, no Computer Use or document edits by verifier. Before captured all11screens before migration; after captured all11screens after stacking, field-width and typography corrections.
+
+PASS: 23 real COMPONENT masters, 118 INSTANCE nodes total:108 in11screenframes and10 inlibrary. Screen instance counts:2=11,1487=10,2963=15,3038=10,3116=10,3195=9,3266=12,3344=10,3397=12,3460=3,3487=6.
+
+First screen restores six actual step instances, active→master3568 and waiting→3572. Sixphase labels present and ATTIVO badge absent. Restore-only checkpoint had no original nodes modified/deleted; pixel changes were confined to stepper regionx48y102,w1404h164.
+
+Visible character multiset preserved across all11screens. Only authorized additions are14 textlayers for restored firstscreen stepper. All preexisting visibletext fontFamily/fontSize/fontStyle/fills now retained. No visible TEXT or INSTANCE bounds extend outside their screenframe. All11 frame sizes/positions unchanged.
+
+Final raster comparison against independent beforebaseline: nonfirstscreens99.553%–99.927%exactRGB pixels. Firstscreen excluding authorized restoredstepper region99.859%exact. Fullfirstscreen88.260%exact includes the intentionallyadded stepperpanel. These percentages include large unchanged backgroundareas and are not claims of exact visualidentity.
+
+Remaining controlled native masterlayout changes: most textpositions shift0.5–1px, field textboxes nowhug glyphs rather than fixed fullwidth, firstscreen centereduploadlabel moves3pxright, and Analisi docklabel on9newerscreens moves12pxright to sharednavigation alignment. These are documented reflow effects; no clipping/contentloss found. Some fieldcornergeometry is now governed byshared master. Plus Jakarta Sans fontfamily retained throughout; current native renderer still fallsback if font is unavailable, identical renderer before/after.
+
+Files: after-ID.png = finalnativeframes, contact-sheet.png = all11screens, report.json = fullperframemetrics/textgeometrydeltas, invariants.json = character/out-of-bounds/instancecounts. Selected before/overlay/diff files included forframes2and2963. No app/browser verification was required for this task.

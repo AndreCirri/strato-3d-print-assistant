@@ -96,6 +96,33 @@ In **Impostazioni** controlla stampante, disponibilità dello slicer e profilo f
 anche gestire augura e scegliere il modello di Claude. Trimesh, Plotly, Matplotlib e l’SDK di Claude
 vengono caricati quando servono al modello, al rendering o alla richiesta, non tutti all’avvio.
 
+## Codex come assistente alternativo
+
+In **Impostazioni → Assistente AI** puoi scegliere **Claude** oppure **Codex**.
+La scelta si applica sia al consiglio sul pezzo sia alla diagnosi nel Diario. I consigli
+precedenti restano leggibili e indicano l'assistente che li ha generati; una nuova richiesta
+sostituisce il consiglio del lavoro corrente.
+
+Codex richiede **Codex CLI** installato e autenticato (`codex login`). STRATO cerca `codex`
+nel PATH, in `~/.local/bin` e nei pacchetti `standalone` e `app-server-daemon` di
+`CODEX_HOME` (predefinito `~/.codex`). Su Windows cerca anche nel percorso locale dell'app Codex.
+In alternativa imposta
+`STRATO_CODEX_EXE` al percorso completo dell'eseguibile. La select **Modello Codex** offre
+Sol 6.1, Terra 6.1, Luna, Astra e Sol 6; **Predefinito della CLI** non specifica un modello,
+senza caricare il config personale. La disponibilità dei modelli dipende dall'account Codex.
+
+La richiesta usa `codex exec` con sandbox **read-only**, sessione effimera e configurazione
+utente disattivata. Numeri, contesto stampante, richiesta e diario recente vengono inviati
+come testo; immagini degli orientamenti o foto del diario sono allegate direttamente.
+I dati vengono inviati a **OpenAI soltanto quando chiedi un consiglio o una diagnosi**.
+La cartella di lavoro non costituisce un limite di lettura dei file del PC. La sandbox
+impedisce modifiche ai file del progetto; Codex usa comunque i file locali necessari
+all'autenticazione e al proprio funzionamento. Limiti e costi dipendono dalle credenziali
+attive della CLI; STRATO non stima un costo API per le risposte Codex.
+
+Non serve aggiungere un SDK Python per Codex. Login mancante, eseguibile assente,
+risposta vuota o attesa superiore a cinque minuti vengono segnalati nell'interfaccia.
+
 ## Verifiche
 
 Dalla cartella del progetto:
@@ -315,9 +342,10 @@ committati né dati presenti nella cronologia Git.
 
 ## Dati inviati a Claude
 
-Tutto resta su questo PC finché non chiedi un consiglio o una diagnosi. Solo allora la richiesta va ad
-Anthropic tramite il Claude Agent SDK, con il **tuo** login di Claude Code o la tua `ANTHROPIC_API_KEY`:
-il progetto non contiene e non salva credenziali.
+Tutto resta su questo PC finché non chiedi un consiglio o una diagnosi. Con **Claude** la richiesta va ad
+Anthropic tramite il Claude Agent SDK, con il **tuo** login di Claude Code o la tua `ANTHROPIC_API_KEY`.
+Con **Codex** va a OpenAI tramite la CLI e le sue credenziali locali, come descritto sopra.
+Il progetto non contiene e non salva credenziali.
 
 - **Consiglio**: stampante (`config.py`), campi del modulo (scopo, priorità, carichi), l'analisi in JSON
   (misure, orientamenti, risultati dello slicer) e le ultime 15 voci del diario; Claude apre con lo
@@ -345,3 +373,10 @@ codice sorgente disponibile per chi le usa.
 
 `orienta_slicer.py` è una traduzione in Python di codice di [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer),
 anch'esso rilasciato sotto AGPL-3.0; i file originali sono indicati nell'intestazione del modulo.
+
+
+## Mockup e componenti FigCraft
+
+Il progetto modificabile e le istruzioni per riprendere su un altro PC sono in
+[design/README.md](design/README.md). Apri [design/strato-ui.figcraft](design/strato-ui.figcraft)
+con FigCraft; il font Plus Jakarta Sans e la licenza sono inclusi in assets/.

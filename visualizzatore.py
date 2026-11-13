@@ -7,8 +7,8 @@ import streamlit as st
 
 from anteprima import carica
 
-SFONDO = '#20292f'
-COLORI = ['#91a4af', '#ed686d', '#f5b76b', '#ad83ed']
+SFONDO = '#0f172a'
+COLORI = ['#94a3b8', '#ed686d', '#ff6827', '#ad83ed']
 FACCE_MAX = 30000
 
 
@@ -50,7 +50,7 @@ def figura(dati):
         gz += [0, 0, None, 0, 0, None]
     fig = go.Figure()
     fig.add_trace(go.Scatter3d(x=gx, y=gy, z=gz, mode='lines',
-                              line=dict(color='#34444d', width=1), hoverinfo='skip', showlegend=False))
+                              line=dict(color='#334155', width=1), hoverinfo='skip', showlegend=False))
     # Luce nello spazio del modello, coerente anche tra browser/WebGL diversi.
     triangoli = v[f]
     normali = np.cross(triangoli[:, 1] - triangoli[:, 0], triangoli[:, 2] - triangoli[:, 0])
@@ -73,10 +73,11 @@ def figura(dati):
         fine[indice] += dimensione * .18
         fig.add_trace(go.Scatter3d(x=[origine[0], fine[0]], y=[origine[1], fine[1]], z=[origine[2], fine[2]],
                                   mode='lines+text', text=['', nome], textposition='top center',
-                                  textfont=dict(size=10, color=colore), line=dict(color=colore, width=2),
+                                  textfont=dict(family='Plus Jakarta Sans', size=10, color=colore), line=dict(color=colore, width=2),
                                   hoverinfo='skip', showlegend=False))
     asse = dict(visible=False, showbackground=False, showspikes=False)
     fig.update_layout(
+        font=dict(family='Plus Jakarta Sans', color='#94a3b8'),
         paper_bgcolor=SFONDO, plot_bgcolor=SFONDO, margin=dict(l=0, r=0, t=0, b=0),
         height=320, showlegend=False, uirevision=dati['revisione'],
         scene=dict(bgcolor=SFONDO, aspectmode='data', dragmode='orbit',

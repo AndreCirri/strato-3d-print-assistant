@@ -1,0 +1,18 @@
+STRATO UI pixel review
+
+Reference: latest live FigCraft document, native frame 2 only, captured through native MCP. No Computer Use. Existing frame was read before rendering. Reference 1500x1320 px, scale 1, sRGB.
+Implementation: local Streamlit http://localhost:8517, headless Microsoft Edge, viewport 1500x1320 CSS px, device scale factor 1, no scrolling; page fonts loaded before screenshot. The entire desktop frame fits the viewport, so no scaling, cropping or alignment transform was used.
+
+Final raw comparison:
+- Exact RGB pixels: 96.6631%.
+- Pixels with any channel differing by more than 16/255: 2.8466%.
+- Mean absolute channel difference: 2.3590/255.
+- RMSE: 17.8855/255.
+
+These are raw image metrics, not a claim of pixel-perfect implementation. White and background areas dominate any full-frame exact-pixel percentage. FigCraft reports Plus Jakarta Sans unavailable for 58 text layers; its native image therefore contains fallback font rendering. The browser uses actual locally supplied Plus Jakarta Sans. Native fontFamily, fontSize and fontStyle properties were retained as authoritative. Text rasterization and fallback glyph metrics account for material remaining differences, so a true same-font pixel-perfect claim cannot be established from this baseline.
+
+Measured major outer bounds match the live design exactly (CSS px): header 0,0,1500,76; upload 48,397,926,448; import parameters 1002,397,450,254; bed card 1002,671,450,343; action bar 48,1079,1404,82; title top 285. Corrected missing sanitized SVG illustrations, wrapped action button, centered step labels, 4.83px column offset, 1px vertical offset and small dock/bed/chip/divider differences.
+
+Mobile: 390x844 viewport; Streamlit internal main scroll container width 390/client width390, scroll height1808. No horizontal overflow. Bottom actions are accessible above fixed navigation after scrolling. Mobile screenshots are qualitative responsive checks; no mobile native reference exists.
+
+Files: reference-native.png, implementation-desktop.png, overlay.png (50% blend), diff.png (4x enhanced channel difference), metrics.json, mobile-top.png, mobile-bottom.png.
