@@ -18,6 +18,15 @@ The guided workflow **Pezzo → Utilizzo → Priorità → Riepilogo → Analisi
 **Indietro** (Back), **Continua** (Continue) and **Avvia analisi** (Start analysis) stay visible
 above the main navigation, even on long forms.
 
+In **Riepilogo** (Summary), choose which stages to run: orientation slicing, profile
+comparison and parameter search, detailed checks, images, and augura STEP checks.
+Geometry is always included; profile comparison requires slicing. Disable the alternative
+orientation search to preserve the file's rotation and place the part on the bed:
+subsequent stages use only that orientation, and augura also skips its orientation search.
+Skip unnecessary stages
+to reduce processing. Choices are saved with the job. Comparison, detailed checks and images
+can also be started from the results. Older jobs without saved choices keep the full analysis.
+
 - **Upload:** STL, 3MF and OBJ; STEP/STP with the augura add-on. A single panel switches from
   upload to preview. The **X** removes the file so you can load another model.
 - **Local 3D viewer:** rotation, zoom and panning with Plotly, a dark background, bed grid and

@@ -45,6 +45,8 @@ CAMPI_RICHIESTA = {"scopo": "scopo", "tipo": "uso", "priorita": "priorita", "con
                    "budget_ricerca": "budget_ricerca"}
 CAMPI_RICHIESTA.update({k: k for k in ('usa_punti_carico', 'vincoli', 'zona_critica',
                                       'fissaggio_x', 'fissaggio_y', 'fissaggio_z', 'carico_x', 'carico_y', 'carico_z')})
+CAMPI_RICHIESTA.update({f'analisi_{fase}': f'analisi_{fase}' for fase in
+                       ('orientamenti', 'slicing', 'varianti', 'controlli', 'immagini', 'step')})
 FORMATI_MODELLO = {".stl", ".3mf", ".obj", ".step", ".stp"}
 DEFAULT_RICHIESTA = {
     "scopo": "", "tipo": "funzionale / meccanico", "priorita": "robustezza e rigidità",
@@ -53,6 +55,8 @@ DEFAULT_RICHIESTA = {
     "parte_critica": "nessuna indicata", "profilo_filamento": config.PROFILO_FILAMENTO, "budget_ricerca": 4}
 DEFAULT_RICHIESTA.update(usa_punti_carico=False, vincoli='', zona_critica='',
                         fissaggio_x=0., fissaggio_y=0., fissaggio_z=0., carico_x=0., carico_y=0., carico_z=10.)
+DEFAULT_RICHIESTA.update({f'analisi_{fase}': True for fase in
+                          ('orientamenti', 'slicing', 'varianti', 'controlli', 'immagini', 'step')})
 
 
 @st.fragment(run_every='2s')
@@ -403,7 +407,7 @@ def mostra_controlli(cartella, dati, richiesta_corrente, sollecitazione):
         st.caption(storico_personale["limite"])
         st.caption(storico_personale["origine_correzioni"])
     if dati.get("immagini_da_aggiornare"):
-        st.warning("Le misure sono aggiornate; le immagini appartengono alla versione precedente dell'analisi.")
+        st.warning("Le immagini degli orientamenti sono da generare o aggiornare.")
         if st.button("Aggiorna le immagini degli orientamenti"):
             lavorazioni.avvia(cartella, "immagini")
             st.rerun()
@@ -631,6 +635,25 @@ with tab_analisi:
                                    'Il compromesso pesa tempo, materiale, layer e robustezza attesa al 25% ciascuno.')
 
                 if fase == 4:
+                    st.subheader('Quali analisi vuoi eseguire?')
+                    st.caption('La geometria viene sempre analizzata. '
+                               'Deseleziona i passaggi che non servono per questo pezzo; meno passaggi riducono il lavoro richiesto.')
+                    st.checkbox('Cerca e confronta orientamenti alternativi', key='analisi_orientamenti')
+                    st.caption('Se disattivato, il pezzo mantiene l’orientamento del file e viene soltanto '
+                               'appoggiato sul piatto. Slicing e profili usano solo questo orientamento.')
+                    slicing = st.checkbox('Slicing degli orientamenti: tempi, materiale e supporti',
+                                          key='analisi_slicing', disabled=not SLICER)
+                    st.checkbox('Confronto dei profili e ricerca dei parametri', key='analisi_varianti',
+                                disabled=not SLICER or not slicing)
+                    if not SLICER:
+                        st.caption('Slicing e confronto richiedono ElegooSlicer.')
+                    elif not slicing:
+                        st.caption('Il confronto dei profili viene saltato perché richiede lo slicing.')
+                    st.checkbox('Controlli dettagliati: cavità, sezioni e toolpath', key='analisi_controlli')
+                    st.checkbox('Immagini degli orientamenti e viste per Claude', key='analisi_immagini')
+                    if file and Path(file.name).suffix.lower() in ('.step', '.stp') and ADDON:
+                        st.checkbox('Controlli STEP con augura', key='analisi_step')
+                    st.caption('Puoi avviare il confronto e i controlli dettagliati anche dalle schede del risultato.')
                     with st.container(border=True):
                         st.subheader("Il punto di partenza.")
                         for etichetta, valore in (

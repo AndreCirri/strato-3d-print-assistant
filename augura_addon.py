@@ -74,7 +74,7 @@ def _json(comando):
     return json.loads(_esegui(comando))
 
 
-def verifica(percorso):
+def verifica(percorso, cerca_orientamenti=True):
     """Controlli di augura sul file così com'è orientato; per gli STEP anche gli orientamenti."""
     percorso = Path(percorso)
     esatto = percorso.suffix.lower() in FORMATI_STEP
@@ -85,7 +85,7 @@ def verifica(percorso):
         out["controlli_come_nel_file"] = _json([AUGURA, "analyze", percorso, "--format", "json", *comuni])["findings"]
     except Exception as e:
         out["errori"].append(f"analyze: {e}")
-    if esatto:
+    if esatto and cerca_orientamenti:
         try:
             migliore = _json([AUGURA, "analyze", percorso, "--format", "json", "--best-orientation", *comuni])
             out["controlli_orientamento_migliore"] = migliore

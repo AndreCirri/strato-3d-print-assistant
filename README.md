@@ -17,6 +17,16 @@ Il percorso **Pezzo → Utilizzo → Priorità → Riepilogo → Analisi → Ris
 mentre navighi. **Indietro**, **Continua** e, nel riepilogo, **Avvia analisi** restano visibili sopra
 la navigazione principale, anche nelle pagine lunghe.
 
+Nel **Riepilogo** puoi scegliere quali fasi eseguire: slicing degli orientamenti,
+confronto dei profili e ricerca, controlli dettagliati, immagini e controlli STEP con augura.
+La geometria resta sempre inclusa; il confronto dei profili richiede lo slicing.
+Puoi disattivare **Cerca e confronta orientamenti alternativi** per mantenere la rotazione del file:
+il pezzo viene soltanto appoggiato sul piatto e le fasi successive usano un unico orientamento.
+Anche augura salta la ricerca degli orientamenti alternativi. Deselezionando le fasi
+non necessarie riduci le elaborazioni. Le scelte vengono salvate con il lavoro; confronto,
+controlli e immagini possono essere avviati anche dal risultato. Per i lavori precedenti
+senza scelte salvate resta attiva l'analisi completa.
+
 - **Caricamento:** STL, 3MF e OBJ; STEP/STP con l’add-on augura. Un solo box passa dall’upload
   all’anteprima. La **X** rimuove il file e permette un nuovo caricamento.
 - **Viewer 3D locale:** rotazione, zoom e spostamento con Plotly, sfondo scuro, griglia del piatto

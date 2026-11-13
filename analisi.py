@@ -327,12 +327,15 @@ def completa_punteggio_geometrico(v):
     return v
 
 
-def orientamenti(mesh, n=6, scelte_slicer=()):
+def orientamenti(mesh, n=6, scelte_slicer=(), cerca_alternative=True):
     """Orientamento del file + pose stabili più probabili + scelte dello slicer, ognuna valutata.
     Ogni candidato ha anche il costo che gli darebbe il pulsante Orienta dello slicer."""
-    trasf, prob = mesh.compute_stable_poses(n_samples=1)
     candidati = [(np.eye(4), None, "come nel file")]
-    candidati += [(T, p, "posa stabile") for T, p in list(zip(trasf, prob))[:n]]
+    if cerca_alternative:
+        trasf, prob = mesh.compute_stable_poses(n_samples=1)
+        candidati += [(T, p, "posa stabile") for T, p in list(zip(trasf, prob))[:n]]
+    else:
+        scelte_slicer = ()
     for s in scelte_slicer:
         # se la scelta dello slicer coincide con un candidato, si segna su quello
         if not any(orienta_slicer.direzione_su(T) @ np.array(s["su"]) > 0.999 for T, _, _ in candidati):
@@ -343,7 +346,7 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         if not any(su @ orienta_slicer.direzione_su(esistente[0]) > 0.999 for esistente in unici):
             unici.append(candidato)
     candidati = unici
-    scafo = mesh.convex_hull
+    scafo = mesh.convex_hull if cerca_alternative else None
     out = []
     for T, p, origine in candidati:
         m = mesh.copy()
@@ -354,7 +357,8 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
         v["probabilita_appoggio"] = round(float(p), 3) if p is not None else None
         v["avvisi"] = avvisi_orientamento(v)
         su = orienta_slicer.direzione_su(T)
-        v["costo_slicer"] = round(orienta_slicer.costo(mesh, su, SOGLIA_SUPPORTI, scafo)[0], 3)
+        v["costo_slicer"] = (round(orienta_slicer.costo(mesh, su, SOGLIA_SUPPORTI, scafo)[0], 3)
+                             if cerca_alternative else None)
         v["scelto_da_slicer"] = [NOMI_SLICER[s["modo"]] for s in scelte_slicer if su @ np.array(s["su"]) > 0.999]
         out.append({"trasformazione": T.tolist(), **v})
     # punteggio semplice (più basso = meglio): i supporti sul pezzo pesano il triplo,
@@ -367,17 +371,20 @@ def orientamenti(mesh, n=6, scelte_slicer=()):
     return out
 
 
-def analizza(percorso):
+def analizza(percorso, cerca_orientamenti=True):
     mesh = carica(percorso)
     info = {
         "versione_geometria": VERSIONE_GEOMETRIA,
         "file": str(percorso),
         **misure_globali(mesh),
         "soglia_supporti_gradi": SOGLIA_SUPPORTI,
+        "ricerca_orientamenti": cerca_orientamenti,
     }
-    scelte = [orienta_slicer.scelta_slicer(mesh, SOGLIA_SUPPORTI, modo) for modo in ("interfaccia", "riga_di_comando")]
-    info["orientamenti"] = orientamenti(mesh, scelte_slicer=scelte)
-    info["confronto_slicer"] = confronto_slicer(info["orientamenti"], scelte)
+    scelte = ([orienta_slicer.scelta_slicer(mesh, SOGLIA_SUPPORTI, modo)
+               for modo in ("interfaccia", "riga_di_comando")] if cerca_orientamenti else [])
+    info["orientamenti"] = orientamenti(mesh, scelte_slicer=scelte, cerca_alternative=cerca_orientamenti)
+    if cerca_orientamenti:
+        info["confronto_slicer"] = confronto_slicer(info["orientamenti"], scelte)
     return mesh, info
 
 

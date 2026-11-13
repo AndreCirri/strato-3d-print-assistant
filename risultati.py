@@ -314,8 +314,12 @@ def mostra(cartella, dati, richiesta, slicer, percorso, *, download, bobina, con
                                   args=(navigazione,))
 
         with orientamenti:
-            st.subheader(f"Stesso pezzo. {len(dati['orientamenti'])} modi di appoggiarlo.")
-            st.caption('Confronto degli orientamenti sezionati. La selezione aggiorna la configurazione da esportare.')
+            if dati.get('ricerca_orientamenti') is False:
+                st.subheader('Orientamento del file')
+                st.caption('Ricerca di alternative disattivata: il pezzo mantiene la rotazione del file ed è appoggiato sul piatto.')
+            else:
+                st.subheader(f"Stesso pezzo. {len(dati['orientamenti'])} modi di appoggiarlo.")
+                st.caption('Confronto degli orientamenti sezionati. La selezione aggiorna la configurazione da esportare.')
             for inizio in range(0, len(dati['orientamenti']), 3):
                 colonne = st.columns(3, gap='medium')
                 for colonna, o in zip(colonne, dati['orientamenti'][inizio:inizio + 3]):
